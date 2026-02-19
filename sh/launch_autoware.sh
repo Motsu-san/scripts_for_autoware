@@ -10,14 +10,47 @@ CALL_DIR=$(pwd)
 # SAVE_LAUNCH_LOG: "true" to save ros2 launch log, anything else or omitted disables log saving
 # TOPIC_TYPE: Topic type for record_rosbag.sh (default, lidar-marker_replay, full-sensing_replay, output, output_lidar-marker, convergence_evaluation, occlusion_adding)
 #   If TOPIC_TYPE is omitted, rosbag recording will be disabled
+# --compare-bag: Path to recorded rosbag for comparison (optional)
+# --compare-topics: Topics to replay from recorded rosbag (optional, requires --compare-bag)
+# 位置引数の解析
+POSITIONAL_ARGS=()
+COMPARE_BAG=""
+COMPARE_TOPICS=()
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --compare-bag)
+            COMPARE_BAG="$2"
+            shift 2
+            ;;
+        --compare-topics)
+            shift
+            while [[ $# -gt 0 ]] && [[ ! "$1" =~ ^-- ]]; do
+                COMPARE_TOPICS+=("$1")
+                shift
+            done
+            ;;
+        *)
+            POSITIONAL_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# 位置引数を設定
+set -- "${POSITIONAL_ARGS[@]}"
+
 if [ $# -lt 2 ] || [ $# -gt 5 ] || [ ! -f "$CALL_DIR/install/setup.bash" ]; then
-    echo "Usage: $0 <MAP_PATH> <ROSBAG_PATH> [POSE_SOURCE_ID] [SAVE_LAUNCH_LOG] [TOPIC_TYPE]"
+    echo "Usage: $0 <MAP_PATH> <ROSBAG_PATH> [POSE_SOURCE_ID] [SAVE_LAUNCH_LOG] [TOPIC_TYPE] [--compare-bag COMPARE_BAG] [--compare-topics TOPIC1 TOPIC2 ...]"
     echo "Must provide <MAP_PATH> <ROSBAG_PATH> and call from the directory where autoware is located and built(ex. $HOME/autoware)."
     echo "POSE_SOURCE_ID: 0=ndt (default), 1=ndt_lidar-marker"
     echo "SAVE_LAUNCH_LOG: 'true' to save ros2 launch log, anything else or omitted disables log saving"
     echo "TOPIC_TYPE: default, lidar-marker_replay, full-sensing_replay, output, output_lidar-marker, convergence_evaluation, occlusion_adding"
     echo "  If TOPIC_TYPE is omitted, rosbag recording will be disabled"
+    echo "--compare-bag: Path to recorded rosbag for comparison (optional)"
+    echo "--compare-topics: Topics to replay from recorded rosbag (optional, requires --compare-bag)"
     echo "Example: $0 \"$HOME/autoware_map\" \"$HOME/rosbag_replay/rosbag_0.db3\" 1 true output"
+    echo "Example with comparison: $0 \"$HOME/autoware_map\" \"$HOME/rosbag_replay/rosbag_0.db3\" 1 true output --compare-bag \"$HOME/rosbag_replay/recorded.bag\" --compare-topics /localization/kinematic_state"
     exit 1
 fi
 
@@ -28,6 +61,17 @@ ROSBAG="$2"
 POSE_SOURCE_ID="${3:-0}"
 SAVE_LAUNCH_LOG="${4:-false}"
 TOPIC_TYPE="${5:-}"
+
+# 比較用rosbagの検証
+if [ -n "$COMPARE_BAG" ] && [ ${#COMPARE_TOPICS[@]} -eq 0 ]; then
+    echo "Error: --compare-topics must be specified when using --compare-bag" >&2
+    exit 1
+fi
+
+if [ ${#COMPARE_TOPICS[@]} -gt 0 ] && [ -z "$COMPARE_BAG" ]; then
+    echo "Error: --compare-bag must be specified when using --compare-topics" >&2
+    exit 1
+fi
 
 LOG_DIR=$HOME/log
 
@@ -93,6 +137,11 @@ if [ -n "$TOPIC_TYPE" ]; then
     echo "TOPIC_TYPE: $TOPIC_TYPE (rosbag recording enabled)" | tee -a $LAUNCH_LOG_FILE
 else
     echo "TOPIC_TYPE: (not specified, rosbag recording disabled)" | tee -a $LAUNCH_LOG_FILE
+fi
+
+if [ -n "$COMPARE_BAG" ]; then
+    echo "COMPARE_BAG: $COMPARE_BAG" | tee -a $LAUNCH_LOG_FILE
+    echo "COMPARE_TOPICS: ${COMPARE_TOPICS[*]}" | tee -a $LAUNCH_LOG_FILE
 fi
 
 # Vehicle ID mapping table
@@ -204,19 +253,57 @@ ros2 service call /localization/pose_twist_fusion_filter/trigger_node std_srvs/s
 # 安定性のため少し待つ
 sleep 3
 
-# 保存 - TOPIC_TYPEが指定されている場合のみrecord_rosbag.shを実行
+# 保存 - TOPIC_TYPEが指定されている場合のみrecord_rosbag_localization_replay.shを実行
 if [ -n "$TOPIC_TYPE" ]; then
     echo "Starting rosbag recording (TOPIC_TYPE=$TOPIC_TYPE)..." | tee -a $LAUNCH_LOG_FILE
-    ./record_rosbag.sh $OUTPUT_DIR $TOPIC_TYPE &
+    ./record_rosbag_localization_replay.sh $OUTPUT_DIR $TOPIC_TYPE &
 else
     echo "Rosbag recording disabled (TOPIC_TYPE not specified)" | tee -a $LAUNCH_LOG_FILE
 fi
 
 # 再生（バックグラウンドで開始）
 echo "Starting rosbag playback..." | tee -a $LAUNCH_LOG_FILE
-ros2 bag play ${ROSBAG} -r 1.0 --clock 200 2>&1 | tee -a $LAUNCH_LOG_FILE &
-# ros2 bag play ${ROSBAG} -r 0.1 -s sqlite3 2>&1 | tee -a $LAUNCH_LOG_FILE &
-ROSBAG_PID=$!
+
+# 比較用rosbagが指定されている場合はplay_multiple_rosbags.pyを使用
+if [ -n "$COMPARE_BAG" ]; then
+    # play_multiple_rosbags.pyのパスを確認
+    PLAY_MULTIPLE_SCRIPT="$HOME/scripts_for_autoware/py/play_multiple_rosbags.py"
+    if [ ! -f "$PLAY_MULTIPLE_SCRIPT" ]; then
+        echo "Error: play_multiple_rosbags.py not found at $PLAY_MULTIPLE_SCRIPT" | tee -a $LAUNCH_LOG_FILE
+        echo "Falling back to single rosbag playback..." | tee -a $LAUNCH_LOG_FILE
+        ros2 bag play ${ROSBAG} -r 1.0 --clock 200 2>&1 | tee -a $LAUNCH_LOG_FILE &
+        ROSBAG_PID=$!
+    else
+        echo "Using play_multiple_rosbags.py for simultaneous playback..." | tee -a $LAUNCH_LOG_FILE
+        # 比較用rosbagの存在確認
+        if [ ! -f "$COMPARE_BAG" ] && [ ! -d "$COMPARE_BAG" ]; then
+            echo "Error: Compare bag not found: $COMPARE_BAG" | tee -a $LAUNCH_LOG_FILE
+            echo "Falling back to single rosbag playback..." | tee -a $LAUNCH_LOG_FILE
+            ros2 bag play ${ROSBAG} -r 1.0 --clock 200 2>&1 | tee -a $LAUNCH_LOG_FILE &
+            ROSBAG_PID=$!
+        else
+            # play_multiple_rosbags.pyを実行
+            # 注意: --topics-onlyはros2 bag playに--exclude-topicsがないため機能しません
+            # --remapオプションで記録したrosbagのトピック名を変更して競合を避けます
+            # Pythonの出力バッファリングを無効化するため、-uオプションを使用
+            echo "Executing: python3 -u $PLAY_MULTIPLE_SCRIPT --source-bag $ROSBAG --recorded-bag $COMPARE_BAG --recorded-topics ${COMPARE_TOPICS[*]} --remap /localization/pose_twist_fusion_filter/biased_pose_with_covariance:=/localization/pose_twist_fusion_filter/biased_pose_with_covariance_recorded -r 1.0 --clock 200" | tee -a $LAUNCH_LOG_FILE
+            python3 -u "$PLAY_MULTIPLE_SCRIPT" \
+                --source-bag "$ROSBAG" \
+                --recorded-bag "$COMPARE_BAG" \
+                --recorded-topics "${COMPARE_TOPICS[@]}" \
+                --remap /localization/pose_twist_fusion_filter/biased_pose_with_covariance:=/localization/pose_twist_fusion_filter/biased_pose_with_covariance_recorded \
+                -r 1.0 \
+                --clock 200 \
+                2>&1 | tee -a $LAUNCH_LOG_FILE &
+            ROSBAG_PID=$!
+        fi
+    fi
+else
+    # 通常の単一rosbag再生
+    ros2 bag play ${ROSBAG} -r 1.0 --clock 200 2>&1 | tee -a $LAUNCH_LOG_FILE &
+    # ros2 bag play ${ROSBAG} -r 0.2 -s sqlite3 2>&1 | tee -a $LAUNCH_LOG_FILE &
+    ROSBAG_PID=$!
+fi
 
 # rosbagからPointCloudデータが流れ始めるまで待つ
 echo "Waiting for sensor data to start flowing (10 seconds)..." | tee -a $LAUNCH_LOG_FILE
