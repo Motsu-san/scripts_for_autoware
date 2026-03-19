@@ -2,16 +2,14 @@
 
 # Usage: ./batch_replay.sh
 # Batch execution script for multiple rosbag replays
+# Configuration: MAP_PATH and ROSBAG pairs are loaded from replay_configs.sh (edit that file to add pairs).
 
-# Configuration: MAP_PATH and ROSBAG pairs
-declare -a REPLAY_CONFIGS=(
-    # Format: "MAP_PATH|ROSBAG_PATH"
-    # "$HOME/autoware_map|$HOME/rosbag_replay/rosbag_0.db3"
-    # Add more MAP_PATH|ROSBAG_PATH pairs as needed
-)
-
-# Get script directory
-SCRIPT_DIR=$(dirname "$0")
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ ! -f "$SCRIPT_DIR/replay_configs.sh" ]; then
+    echo "Error: Required file not found: $SCRIPT_DIR/replay_configs.sh" >&2
+    exit 1
+fi
+source "$SCRIPT_DIR/replay_configs.sh"
 
 # Setup logging
 LOG_FILE="$SCRIPT_DIR/batch_replay.log"
@@ -26,12 +24,19 @@ log_message() {
     echo "[$TIMESTAMP] $message" >> "$LOG_FILE"
 }
 
+# Build list of valid configs (skip empty and comment lines)
+VALID_CONFIGS=()
+for c in "${REPLAY_CONFIGS[@]}"; do
+    [[ -z "$c" || "$c" =~ ^[[:space:]]*# ]] && continue
+    VALID_CONFIGS+=("$c")
+done
+
 log_message "Starting batch replay execution..."
-log_message "Total configurations: ${#REPLAY_CONFIGS[@]}"
+log_message "Total configurations: ${#VALID_CONFIGS[@]}"
 log_message ""
 
-for i in "${!REPLAY_CONFIGS[@]}"; do
-    config="${REPLAY_CONFIGS[$i]}"
+for i in "${!VALID_CONFIGS[@]}"; do
+    config="${VALID_CONFIGS[$i]}"
 
     # Update timestamp for each iteration
     TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
@@ -39,7 +44,7 @@ for i in "${!REPLAY_CONFIGS[@]}"; do
     # Split MAP_PATH and ROSBAG_PATH
     IFS='|' read -r map_path rosbag_path <<< "$config"
 
-    log_message "=== Configuration $((i+1))/${#REPLAY_CONFIGS[@]} ==="
+    log_message "=== Configuration $((i+1))/${#VALID_CONFIGS[@]} ==="
     log_message "MAP_PATH: $map_path"
     log_message "ROSBAG: $rosbag_path"
     log_message ""
@@ -62,7 +67,8 @@ for i in "${!REPLAY_CONFIGS[@]}"; do
 
     # Check exit status and run analysis if successful
     if [ $? -eq 0 ]; then
-        log_message "Configuration $((i+1)) rosbag replay completed successfully"        # Find the generated log file for analysis
+        log_message "Configuration $((i+1))/${#VALID_CONFIGS[@]} rosbag replay completed successfully"
+        # Find the generated log file for analysis
         rosbag_dir=$(dirname "$rosbag_path")
         latest_log_dir=$(find "$rosbag_dir" -maxdepth 1 -type d -name "record_replay_*" | sort | tail -1)
 
