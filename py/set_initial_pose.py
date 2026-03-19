@@ -17,21 +17,21 @@ class InitialPoseSetter(Node):
     def __init__(self, pose_data, skip_initial_localization=False):
         super().__init__('initial_pose_setter')
 
-        # Determine which topic to publish to
+        # Determine which topic(s) to publish to
         if skip_initial_localization:
             # Directly to EKF localizer (skips pose estimation)
-            topic_name = '/initialpose3d'
+            self.topic_names = ['/initialpose3d']
             self.get_logger().info('Publishing directly to EKF localizer (skipping pose estimation)')
         else:
-            # To pose initializer (starts pose estimation)
-            topic_name = '/initialpose'
-            self.get_logger().info('Publishing to pose initializer (starting pose estimation)')
+            # To pose initializer and/or unified_localization (localization_node subscribes to /localization_node/initialpose)
+            self.topic_names = ['/initialpose', '/localization_node/initialpose']
+            self.get_logger().info('Publishing to /initialpose and /localization_node/initialpose (pose initializer / unified_localization)')
 
-        self.publisher = self.create_publisher(
-            PoseWithCovarianceStamped,
-            topic_name,
-            10
-        )
+        self.publishers = [
+            self.create_publisher(PoseWithCovarianceStamped, name, 10)
+            for name in self.topic_names
+        ]
+        self.publisher = self.publishers[0]  # for compatibility
 
         # Wait for publisher to be ready
         self.get_logger().info('Waiting for subscribers...')
@@ -74,16 +74,19 @@ class InitialPoseSetter(Node):
         x = msg.pose.pose.position.x
         y = msg.pose.pose.position.y
         z = msg.pose.pose.position.z
-        self.get_logger().info(f'Publishing initial pose to {topic_name}: x={x:.2f}, y={y:.2f}, z={z:.2f}')
-        self.publisher.publish(msg)
+        self.get_logger().info(f'Publishing initial pose: x={x:.2f}, y={y:.2f}, z={z:.2f}')
+        for pub in self.publishers:
+            pub.publish(msg)
 
         # Publish multiple times to ensure reception
         time.sleep(0.1)
-        self.publisher.publish(msg)
+        for pub in self.publishers:
+            pub.publish(msg)
         time.sleep(0.1)
-        self.publisher.publish(msg)
+        for pub in self.publishers:
+            pub.publish(msg)
 
-        self.get_logger().info(f'Initial pose published successfully to {topic_name}')
+        self.get_logger().info(f'Initial pose published successfully to {", ".join(self.topic_names)}')
 
         # If skipping initial localization, activate EKF localizer and NDT scan matcher
         if skip_initial_localization:
