@@ -699,6 +699,36 @@ else
     echo "No /clock in rosbag: play with --clock $PLAY_CLOCK_HZ" | tee -a $LAUNCH_LOG_FILE
 fi
 
+# 再生コマンドをバックグラウンド実行し、必要なら tee でログ保存
+# 注意: cmd | tee & だと $! は tee 側になり、-T 終了や wait が本体に効かない。
+# > >(tee -a ...) 2>&1 & なら $! は再生本体（ros2 bag play 等）になる。
+# バックグラウンド & は非対話だと子の stdin が /dev/null になりがちなので、スペース一時停止用に </dev/tty を明示。
+run_with_playback_log() {
+    if [ -n "$LAUNCH_LOG_FILE" ]; then
+        if [ -r /dev/tty ]; then
+            "$@" </dev/tty > >(tee -a "$LAUNCH_LOG_FILE") 2>&1 &
+        else
+            "$@" > >(tee -a "$LAUNCH_LOG_FILE") 2>&1 &
+        fi
+    else
+        if [ -r /dev/tty ]; then
+            "$@" </dev/tty &
+        else
+            "$@" &
+        fi
+    fi
+    ROSBAG_PID=$!
+}
+
+run_with_playback_log_nostdin() {
+    if [ -n "$LAUNCH_LOG_FILE" ]; then
+        "$@" < /dev/null > >(tee -a "$LAUNCH_LOG_FILE") 2>&1 &
+    else
+        "$@" < /dev/null &
+    fi
+    ROSBAG_PID=$!
+}
+
 # 途中開始時の /tf_static 補助:
 # - START_OFFSET_SEC > 0 のときのみ、/tf_static 専用プレイヤーを先行起動して loop させる
 # - これにより、途中開始で先頭付近の /tf_static を飛ばしても static TF を継続供給できる
@@ -706,8 +736,8 @@ TF_STATIC_LOOP_ON_OFFSET="${TF_STATIC_LOOP_ON_OFFSET:-true}"
 if [ "$TF_STATIC_LOOP_ON_OFFSET" = "true" ] && [ -n "$START_OFFSET_SEC" ] && awk "BEGIN{exit !($START_OFFSET_SEC > 0)}"; then
     if bag_has_tf_static_topic "$ROSBAG"; then
         echo "Start /tf_static helper player (loop) for offset replay: --topics /tf_static --loop" | tee -a $LAUNCH_LOG_FILE
-        ros2 bag play "${ROSBAG}" --topics /tf_static --loop > >(tee -a "$LAUNCH_LOG_FILE") 2>&1 &
-        TF_STATIC_PLAYER_PID=$!
+        run_with_playback_log_nostdin ros2 bag play "${ROSBAG}" --topics /tf_static --loop
+        TF_STATIC_PLAYER_PID=$ROSBAG_PID
         sleep 1
     else
         echo "No /tf_static in rosbag: skip /tf_static helper player" | tee -a $LAUNCH_LOG_FILE
@@ -743,38 +773,32 @@ if [ -n "$COMPARE_BAG" ]; then
     if [ ! -f "$PLAY_MULTIPLE_SCRIPT" ]; then
         echo "Error: play_multiple_rosbags.py not found at $PLAY_MULTIPLE_SCRIPT" | tee -a $LAUNCH_LOG_FILE
         echo "Falling back to single rosbag playback..." | tee -a $LAUNCH_LOG_FILE
-        ros2 bag play ${ROSBAG} -r "$PLAYBACK_RATE" "${PLAY_OFFSET_ARGS[@]}" "${CLOCK_ARGS[@]}" > >(tee -a "$LAUNCH_LOG_FILE") 2>&1 &
-        ROSBAG_PID=$!
+        run_with_playback_log ros2 bag play "${ROSBAG}" -r "$PLAYBACK_RATE" "${PLAY_OFFSET_ARGS[@]}" "${CLOCK_ARGS[@]}"
     else
         echo "Using play_multiple_rosbags.py for simultaneous playback..." | tee -a $LAUNCH_LOG_FILE
         # 比較用rosbagの存在確認
         if [ ! -f "$COMPARE_BAG" ] && [ ! -d "$COMPARE_BAG" ]; then
             echo "Error: Compare bag not found: $COMPARE_BAG" | tee -a $LAUNCH_LOG_FILE
             echo "Falling back to single rosbag playback..." | tee -a $LAUNCH_LOG_FILE
-            ros2 bag play ${ROSBAG} -r "$PLAYBACK_RATE" "${PLAY_OFFSET_ARGS[@]}" "${CLOCK_ARGS[@]}" > >(tee -a "$LAUNCH_LOG_FILE") 2>&1 &
-            ROSBAG_PID=$!
+            run_with_playback_log ros2 bag play "${ROSBAG}" -r "$PLAYBACK_RATE" "${PLAY_OFFSET_ARGS[@]}" "${CLOCK_ARGS[@]}"
         else
             # play_multiple_rosbags.pyを実行
             # 注意: --topics-onlyはros2 bag playに--exclude-topicsがないため機能しません
             # --remapオプションで記録したrosbagのトピック名を変更して競合を避けます
             # Pythonの出力バッファリングを無効化するため、-uオプションを使用
             echo "Executing: python3 -u $PLAY_MULTIPLE_SCRIPT ... -r $PLAYBACK_RATE ${PLAY_OFFSET_ARGS[*]}" | tee -a $LAUNCH_LOG_FILE
-            python3 -u "$PLAY_MULTIPLE_SCRIPT" \
+            run_with_playback_log python3 -u "$PLAY_MULTIPLE_SCRIPT" \
                 --source-bag "$ROSBAG" \
                 --recorded-bag "$COMPARE_BAG" \
                 --recorded-topics "${COMPARE_TOPICS[@]}" \
                 --remap /localization/pose_twist_fusion_filter/biased_pose_with_covariance:=/localization/pose_twist_fusion_filter/biased_pose_with_covariance_recorded \
                 -r "$PLAYBACK_RATE" \
-                \
-                "${PLAY_OFFSET_ARGS[@]}" \
-                > >(tee -a "$LAUNCH_LOG_FILE") 2>&1 &
-            ROSBAG_PID=$!
+                "${PLAY_OFFSET_ARGS[@]}"
         fi
     fi
 else
-    # 通常の単一rosbag再生（/clock の有無を自動判定）
-    ros2 bag play ${ROSBAG} -r "$PLAYBACK_RATE" "${PLAY_OFFSET_ARGS[@]}" "${CLOCK_ARGS[@]}" > >(tee -a "$LAUNCH_LOG_FILE") 2>&1 &
-    ROSBAG_PID=$!
+    # 通常の単一rosbag再生（/clock の有無は上記で判定）
+    run_with_playback_log ros2 bag play "${ROSBAG}" -r "$PLAYBACK_RATE" "${PLAY_OFFSET_ARGS[@]}" "${CLOCK_ARGS[@]}"
 fi
 
 if [ -n "$END_UNIX_TIME" ]; then
