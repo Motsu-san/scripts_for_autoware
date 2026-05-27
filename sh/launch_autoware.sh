@@ -28,6 +28,9 @@ source "$SCRIPT_DIR/vehicle_configs.sh"
 # --compare-bag: Path to recorded rosbag for comparison (optional)
 # --compare-topics: Topics to replay from recorded rosbag (optional, requires --compare-bag)
 # --rate RATE: rosbag playback rate (default: 0.2). Passed to 'ros2 bag play -r RATE'.
+# --force-sample-vehicle: ROSBAG パスに依存せず vehicle_configs.sh の fragment「sample」（Autoware sample_sensor_kit）を使う。
+#   concatenated_only 等で実車 URDF が不要なローカライゼーション再生向け（IMU バイアス・車速スケール等は launch 側パラメータで上書き想定）。
+# --gnss-receiver NAME: localization_standalone → tier4_sensing → sample_sensor_kit の gnss.launch.xml に渡す（ublox / septentrio）。未指定時は環境変数 GNSS_RECEIVER、それも無ければ ublox。
 # --record-rviz: Record RViz display (start after RViz window appears, stop when playback ends). Requires capture_rviz_display.sh and xdotool.
 # -t TIME: Start playback from this time. UNIX time (e.g. 1772096549.105) or JST datetime (e.g. '2026-02-26 12:34:56').
 # -T TIME, --end-time TIME: End playback at this absolute time. UNIX/JST 指定可。内部的には --duration に変換。
@@ -45,6 +48,7 @@ source "$SCRIPT_DIR/vehicle_configs.sh"
 #     点群が既に bag にある場合も false 推奨（不要な nebula 負荷を避ける）。
 #   vehicle / system / map も false にできるが、map=false は NDT 向けに通常不可。system/vehicle off は診断や車両情報で不具合の可能性あり。
 #   環境変数（未設定時は true）: LAUNCH_VEHICLE, LAUNCH_SYSTEM, LAUNCH_MAP, LAUNCH_SENSING, LAUNCH_SENSING_DRIVER, LAUNCH_API, LAUNCH_LOCALIZATION, LAUNCH_RVIZ
+#   GNSS（localization_standalone の sensing 向け、sample_sensor_kit のみ gnss.launch で使用）: GNSS_RECEIVER=ublox|septentrio（未指定時 ublox）。または --gnss-receiver。
 #   URDF（vls_description 等）未ビルドで xacro 失敗: colcon build --packages-up-to aip_xx1_description または LAUNCH_VEHICLE=false
 #   system 用（duplicated_node_checker 等）未ビルド: 下の colcon 一括 または LAUNCH_SYSTEM=false
 #   aip_xx1 + sensing で pe_ars408_ros 未ビルド: colcon build --packages-select pe_ars408_ros または LAUNCH_SENSING=false
@@ -58,6 +62,7 @@ START_UNIX_TIME=""
 END_UNIX_TIME=""
 PLAYBACK_RATE=""
 RECORD_RVIZ="false"
+FORCE_SAMPLE_VEHICLE="false"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -79,6 +84,14 @@ while [[ $# -gt 0 ]]; do
         --record-rviz)
             RECORD_RVIZ="true"
             shift
+            ;;
+        --force-sample-vehicle)
+            FORCE_SAMPLE_VEHICLE="true"
+            shift
+            ;;
+        --gnss-receiver)
+            GNSS_RECEIVER="$2"
+            shift 2
             ;;
         -t)
             START_UNIX_TIME="$2"
@@ -103,11 +116,13 @@ if [ $# -lt 2 ] || [ $# -gt 5 ] || [ ! -f "$CALL_DIR/install/setup.bash" ]; then
     echo "Must provide <MAP_PATH> <ROSBAG_PATH> and call from the directory where autoware is located and built(ex. $HOME/autoware)."
     echo "POSE_SOURCE_ID: 0=ndt (default), 1=ndt_lidar-marker"
     echo "SAVE_LAUNCH_LOG: 'true' to save ros2 launch log, anything else or omitted disables log saving"
-    echo "TOPIC_TYPE: default, lidar-marker_replay, full-sensing_replay, output, output_lidar-marker, convergence_evaluation, occlusion_adding"
+    echo "TOPIC_TYPE: default, lidar-marker_replay, full-sensing_replay, output, output_pose_mean, output_lidar-marker, convergence_evaluation, occlusion_adding, ..."
     echo "  If TOPIC_TYPE is omitted, rosbag recording will be disabled"
     echo "--compare-bag: Path to recorded rosbag for comparison (optional)"
     echo "--compare-topics: Topics to replay from recorded rosbag (optional, requires --compare-bag)"
     echo "--rate RATE: Playback rate for ros2 bag play (default: 0.2)"
+    echo "--force-sample-vehicle: Use Autoware sample_vehicle/default/sample_sensor_kit from vehicle_configs (ignore bag path detection)"
+    echo "--gnss-receiver NAME: GNSS preset for localization_standalone sensing (sample kit: ublox | septentrio). Default: env GNSS_RECEIVER or ublox"
     echo "--record-rviz: Record RViz display (starts when RViz window appears, stops when playback ends)"
     echo "-t TIME: Start playback from this time. UNIX time (e.g. 1772096549.105) or JST datetime (e.g. '2026-02-26 12:34:56')"
     echo "-T, --end-time TIME: End playback at this absolute time. UNIX/JST accepted"
@@ -161,8 +176,58 @@ LAUNCH_DEFAULT_AD_API="${LAUNCH_DEFAULT_AD_API:-true}"
 LAUNCH_RVIZ_ADAPTORS="${LAUNCH_RVIZ_ADAPTORS:-true}"
 LAUNCH_RVIZ="${LAUNCH_RVIZ:-true}"
 LAUNCH_PERCEPTION="false"
+# localization_standalone → tier4_sensing_launch → *_launch/sensing.launch.xml（sample_sensor_kit は gnss.launch.xml で参照）
+GNSS_RECEIVER="${GNSS_RECEIVER:-ublox}"
+case "$GNSS_RECEIVER" in
+    ublox|septentrio) ;;
+    *)
+        echo "Error: GNSS_RECEIVER / --gnss-receiver は ublox または septentrio のみ（現在: $GNSS_RECEIVER）" >&2
+        exit 1
+        ;;
+esac
 LAUNCH_PLANNING="false"
 LAUNCH_CONTROL="false"
+
+# RViz 用 DISPLAY 自動設定（tmux/SSH では DISPLAY が空のことが多い）。
+# 優先: 既に有効な DISPLAY → xrdp :10 → Xvfb :20。上書きは環境変数 DISPLAY / XAUTHORITY で可能。
+setup_rviz_display() {
+    if [ "${LAUNCH_RVIZ:-true}" != "true" ]; then
+        return 0
+    fi
+    local _log="${LAUNCH_LOG_FILE:-/dev/stderr}"
+    local _xauth="${XAUTHORITY:-$HOME/.Xauthority}"
+    local _d
+
+    if [ -n "${DISPLAY:-}" ] && xdpyinfo >/dev/null 2>&1; then
+        export XAUTHORITY="${XAUTHORITY:-$_xauth}"
+        return 0
+    fi
+
+    if [ -n "${DISPLAY:-}" ]; then
+        echo "Warning: DISPLAY=$DISPLAY is not reachable; trying auto-detect (:10 xrdp, :20 Xvfb)..." | tee -a "$_log"
+    else
+        echo "DISPLAY is unset; auto-detecting for RViz (:10 xrdp, :20 Xvfb)..." | tee -a "$_log"
+    fi
+
+    for _d in ":10" ":20"; do
+        if XAUTHORITY="$_xauth" DISPLAY="$_d" xdpyinfo >/dev/null 2>&1; then
+            export DISPLAY="$_d"
+            export XAUTHORITY="$_xauth"
+            echo "RViz display: DISPLAY=$DISPLAY XAUTHORITY=$XAUTHORITY" | tee -a "$_log"
+            if [ "$_d" = ":10" ]; then
+                echo "  (xrdp desktop — open Remote Desktop to see RViz windows)" | tee -a "$_log"
+            elif [ "$_d" = ":20" ]; then
+                echo "  (Xvfb — use VNC or x11vnc on :20 if you need to view the window)" | tee -a "$_log"
+            fi
+            return 0
+        fi
+    done
+
+    echo "Error: RViz is enabled but no X display is available." | tee -a "$_log"
+    echo "  Connect via xrdp, or: export DISPLAY=:10 XAUTHORITY=\$HOME/.Xauthority" | tee -a "$_log"
+    echo "  Or disable RViz: LAUNCH_RVIZ=false $0 ..." | tee -a "$_log"
+    return 1
+}
 
 # Parse JST date/time string to UNIX time (seconds, decimal OK).
 # Accepts: "2026-02-26 12:34:56", "2026-02-26 12:34:56.123", "2026/02/26 12:34:56"
@@ -332,27 +397,41 @@ if [ -n "$END_UNIX_TIME" ]; then
 fi
 echo "PLAYBACK_RATE (--rate): $PLAYBACK_RATE" | tee -a $LAUNCH_LOG_FILE
 echo "RECORD_RVIZ (--record-rviz): $RECORD_RVIZ" | tee -a $LAUNCH_LOG_FILE
+echo "FORCE_SAMPLE_VEHICLE (--force-sample-vehicle): $FORCE_SAMPLE_VEHICLE" | tee -a $LAUNCH_LOG_FILE
 
 # Detect vehicle configuration from ROSBAG path (VEHICLE_CONFIGS / detect_vehicle_config は vehicle_configs.sh で定義)
-VEHICLE_CONFIG=$(detect_vehicle_config "$ROSBAG")
-if [ $? -ne 0 ]; then
-    echo "Error: Vehicle configuration not found for ROSBAG path: $ROSBAG"
-    echo "Available vehicle ID fragments (edit $SCRIPT_DIR/vehicle_configs.sh to add):"
-    for config in "${VEHICLE_CONFIGS[@]}"; do
-        [[ -z "$config" || "$config" =~ ^[[:space:]]*# ]] && continue
-        IFS='|' read -r vehicle_fragment vehicle_model_val vehicle_id_val sensor_model_val <<< "$config"
-        echo "  $vehicle_fragment -> $vehicle_model_val, $vehicle_id_val, $sensor_model_val"
-    done
-    exit 1
+if [ "$FORCE_SAMPLE_VEHICLE" = "true" ]; then
+    VEHICLE_CONFIG=$(lookup_vehicle_config_by_fragment "sample")
+    if [ $? -ne 0 ] || [ -z "$VEHICLE_CONFIG" ]; then
+        echo "Error: --force-sample-vehicle requires a \"sample|...\" entry in $SCRIPT_DIR/vehicle_configs.sh" >&2
+        exit 1
+    fi
+    echo "Vehicle configuration: forced Autoware sample kit (vehicle_configs fragment: sample)" | tee -a $LAUNCH_LOG_FILE
+else
+    VEHICLE_CONFIG=$(detect_vehicle_config "$ROSBAG")
+    if [ $? -ne 0 ]; then
+        echo "Error: Vehicle configuration not found for ROSBAG path: $ROSBAG"
+        echo "Available vehicle ID fragments (edit $SCRIPT_DIR/vehicle_configs.sh to add):"
+        for config in "${VEHICLE_CONFIGS[@]}"; do
+            [[ -z "$config" || "$config" =~ ^[[:space:]]*# ]] && continue
+            IFS='|' read -r vehicle_fragment vehicle_model_val vehicle_id_val sensor_model_val <<< "$config"
+            echo "  $vehicle_fragment -> $vehicle_model_val, $vehicle_id_val, $sensor_model_val"
+        done
+        exit 1
+    fi
+    echo "Detected vehicle configuration (from ROSBAG path):" | tee -a $LAUNCH_LOG_FILE
 fi
 
 IFS='|' read -r VEHICLE_MODEL VEHICLE_ID SENSOR_MODEL <<< "$VEHICLE_CONFIG"
 export VEHICLE_ID
 
-echo "Detected vehicle configuration:" | tee -a $LAUNCH_LOG_FILE
 echo "  VEHICLE_MODEL: $VEHICLE_MODEL" | tee -a $LAUNCH_LOG_FILE
 echo "  VEHICLE_ID: $VEHICLE_ID" | tee -a $LAUNCH_LOG_FILE
 echo "  SENSOR_MODEL: $SENSOR_MODEL" | tee -a $LAUNCH_LOG_FILE
+
+if [ "$LAUNCH_RVIZ" = "true" ]; then
+    setup_rviz_display || exit 1
+fi
 
 echo "Launch configuration:" | tee -a $LAUNCH_LOG_FILE
 echo "  SENSING: $LAUNCH_SENSING" | tee -a $LAUNCH_LOG_FILE
@@ -372,11 +451,64 @@ else
     echo "  RVIZ_CONFIG: (launch default: tier4_localization_launch/rviz/autoware.rviz)" | tee -a $LAUNCH_LOG_FILE
 fi
 echo "  USE_SIM_TIME: $USE_SIM_TIME" | tee -a $LAUNCH_LOG_FILE
+echo "  GNSS_RECEIVER (localization_standalone gnss_receiver): $GNSS_RECEIVER" | tee -a $LAUNCH_LOG_FILE
+if [ "$LAUNCH_RVIZ" = "true" ]; then
+    echo "  DISPLAY (for RViz): ${DISPLAY:-<unset>}" | tee -a $LAUNCH_LOG_FILE
+    echo "  XAUTHORITY (for RViz): ${XAUTHORITY:-<unset>}" | tee -a $LAUNCH_LOG_FILE
+fi
 
 # Cleanup on exit (Ctrl+C etc.): stop RViz capture then kill autoware
 RVIZ_CAPTURE_PID=""
 TF_STATIC_PLAYER_PID=""
 END_TIME_MONITOR_PID=""
+RECORD_ROSBAG_PID=""
+# ros2 bag record が SIGINT でも長時間残る場合のフォールバック（wait 永久ブロック防止）
+# 待ち秒数: 環境変数 RECORD_STOP_WAIT_INT_SEC（既定 25）
+stop_rosbag_record_wrapper() {
+    local pid="$1"
+    [ -z "$pid" ] && return 0
+    kill -0 "$pid" 2>/dev/null || return 0
+    if [ -n "${LAUNCH_LOG_FILE:-}" ]; then
+        echo "Stopping rosbag record (PID $pid)..." | tee -a "$LAUNCH_LOG_FILE"
+    else
+        echo "Stopping rosbag record (PID $pid)..."
+    fi
+    kill -INT "$pid" 2>/dev/null || true
+    local max="${RECORD_STOP_WAIT_INT_SEC:-25}"
+    local i=0
+    while kill -0 "$pid" 2>/dev/null && [ "$i" -lt "$max" ]; do
+        sleep 1
+        i=$((i + 1))
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+        pkill -P "$pid" 2>/dev/null || true
+        sleep 1
+    fi
+    if kill -0 "$pid" 2>/dev/null; then
+        if [ -n "${LAUNCH_LOG_FILE:-}" ]; then
+            echo "Record still running after SIGINT ~${max}s; sending SIGTERM..." | tee -a "$LAUNCH_LOG_FILE"
+        else
+            echo "Record still running after SIGINT ~${max}s; sending SIGTERM..."
+        fi
+        kill -TERM "$pid" 2>/dev/null || true
+        sleep 2
+    fi
+    if kill -0 "$pid" 2>/dev/null; then
+        if [ -n "${LAUNCH_LOG_FILE:-}" ]; then
+            echo "Record still running; sending SIGKILL..." | tee -a "$LAUNCH_LOG_FILE"
+        else
+            echo "Record still running; sending SIGKILL..."
+        fi
+        kill -KILL "$pid" 2>/dev/null || true
+        sleep 1
+    fi
+    wait "$pid" 2>/dev/null || true
+    if [ -n "${LAUNCH_LOG_FILE:-}" ]; then
+        echo "Rosbag record finished." | tee -a "$LAUNCH_LOG_FILE"
+    else
+        echo "Rosbag record finished."
+    fi
+}
 cleanup_on_exit() {
     if [ -n "${END_TIME_MONITOR_PID:-}" ] && kill -0 "$END_TIME_MONITOR_PID" 2>/dev/null; then
         kill -INT "$END_TIME_MONITOR_PID" 2>/dev/null || true
@@ -389,6 +521,11 @@ cleanup_on_exit() {
     if [ -n "${RVIZ_CAPTURE_PID:-}" ] && kill -0 "$RVIZ_CAPTURE_PID" 2>/dev/null; then
         kill -INT "$RVIZ_CAPTURE_PID" 2>/dev/null || true
         wait "$RVIZ_CAPTURE_PID" 2>/dev/null || true
+    fi
+    if [ -n "${RECORD_ROSBAG_PID:-}" ] && kill -0 "$RECORD_ROSBAG_PID" 2>/dev/null; then
+        local _rp="$RECORD_ROSBAG_PID"
+        unset RECORD_ROSBAG_PID
+        stop_rosbag_record_wrapper "$_rp"
     fi
     "$HOME/scripts_for_autoware/sh/kill_autoware.sh"
 }
@@ -541,21 +678,33 @@ if [ "${LAUNCH_SENSING:-true}" = "true" ] && [ "$SENSOR_MODEL" = "aip_xx1" ]; th
     fi
 fi
 
-# API 起動時: default_ad_api を含む API スタックが必要（automatic_pose_initializer が /api/localization/* を使用）
+# API 起動時: AD API スタックが必要（automatic_pose_initializer が /api/localization/* を使用）
+# Autoware ではパッケージ名は autoware_default_adapi（旧世代の default_ad_api は廃止）
 if [ "${LAUNCH_API:-true}" = "true" ]; then
-    _api_need=(default_ad_api)
+    _api_pkg_groups=(
+        "autoware_default_adapi default_ad_api"
+    )
     if [ "${LAUNCH_RVIZ_ADAPTORS:-true}" = "true" ]; then
-        _api_need+=(ad_api_adaptors)
+        # 新世代: autoware_adapi_adaptors / 旧名: ad_api_adaptors
+        _api_pkg_groups+=("autoware_adapi_adaptors ad_api_adaptors")
     fi
     _api_miss=()
-    for _p in "${_api_need[@]}"; do
-        if ! ros2 pkg prefix "$_p" &>/dev/null; then
-            _api_miss+=("$_p")
+    for _g in "${_api_pkg_groups[@]}"; do
+        _api_ok=0
+        for _p in $_g; do
+            if ros2 pkg prefix "$_p" &>/dev/null; then
+                _api_ok=1
+                break
+            fi
+        done
+        if [ "$_api_ok" -eq 0 ]; then
+            _api_miss+=("($_g)")
         fi
     done
+    unset _api_ok
     if [ ${#_api_miss[@]} -gt 0 ]; then
-        echo "Error: API 用パッケージが未インストール: ${_api_miss[*]}" | tee -a $LAUNCH_LOG_FILE >&2
-        echo "  対処) cd $CALL_DIR && source /opt/ros/humble/setup.bash && colcon build --packages-up-to default_ad_api ad_api_adaptors" | tee -a $LAUNCH_LOG_FILE >&2
+        echo "Error: API 用パッケージが未インストール（いずれかの名前で存在すること）: ${_api_miss[*]}" | tee -a $LAUNCH_LOG_FILE >&2
+        echo "  対処) cd $CALL_DIR && source /opt/ros/humble/setup.bash && colcon build --packages-up-to tier4_autoware_api_launch" | tee -a $LAUNCH_LOG_FILE >&2
         exit 1
     fi
 fi
@@ -621,6 +770,7 @@ _LOC_STANDALONE_ARGS=(
     map_path:=$MAP_PATH
     vehicle_model:=$VEHICLE_MODEL
     sensor_model:=$SENSOR_MODEL
+    gnss_receiver:=$GNSS_RECEIVER
     launch_sensing:=$LAUNCH_SENSING
     launch_api:=$LAUNCH_API
     launch_default_ad_api:=$LAUNCH_DEFAULT_AD_API
@@ -680,6 +830,7 @@ fi
 if [ -n "$TOPIC_TYPE" ]; then
     echo "Starting rosbag recording (TOPIC_TYPE=$TOPIC_TYPE)..." | tee -a $LAUNCH_LOG_FILE
     ./record_rosbag_localization_replay.sh $OUTPUT_DIR $TOPIC_TYPE &
+    RECORD_ROSBAG_PID=$!
 else
     echo "Rosbag recording disabled (TOPIC_TYPE not specified)" | tee -a $LAUNCH_LOG_FILE
 fi
@@ -850,6 +1001,14 @@ fi
 # rosbagプロセスが終了するまで待つ
 echo "Waiting for rosbag playback to complete..." | tee -a $LAUNCH_LOG_FILE
 wait $ROSBAG_PID
+
+# 記録プロセス（ros2 bag record）を終了。SIGINT 後も残る場合は TERM/KILL（RECORD_STOP_WAIT_INT_SEC）
+if [ -n "${RECORD_ROSBAG_PID:-}" ]; then
+    _rp_done="$RECORD_ROSBAG_PID"
+    unset RECORD_ROSBAG_PID
+    stop_rosbag_record_wrapper "$_rp_done"
+fi
+unset _rp_done 2>/dev/null || true
 
 # end-time monitor が残っていれば停止
 if [ -n "$END_TIME_MONITOR_PID" ]; then

@@ -25,3 +25,17 @@ detect_vehicle_config() {
     done
     return 1
 }
+
+# Exact match on vehicle_fragment (first column). Used by launch_autoware.sh --force-sample-vehicle, etc.
+lookup_vehicle_config_by_fragment() {
+    local fragment="$1"
+    for config in "${VEHICLE_CONFIGS[@]}"; do
+        [[ -z "$config" || "$config" =~ ^[[:space:]]*# ]] && continue
+        IFS='|' read -r vehicle_fragment vehicle_model_val vehicle_id_val sensor_model_val <<< "$config"
+        if [[ "$vehicle_fragment" == "$fragment" ]]; then
+            echo "$vehicle_model_val|$vehicle_id_val|$sensor_model_val"
+            return 0
+        fi
+    done
+    return 1
+}
