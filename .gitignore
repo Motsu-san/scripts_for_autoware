@@ -16,7 +16,7 @@ eggs/
 .eggs/
 lib/
 # Keep shell modules for localization replay launch (not Python packaging)
-!sh/launch_replay_localization/lib/
+!launch_replay_localization/lib/
 lib64/
 parts/
 sdist/
