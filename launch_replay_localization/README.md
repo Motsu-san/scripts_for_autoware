@@ -90,3 +90,24 @@ cd ~/autoware   # Autoware ビルド済みディレクトリ
 ```bash
 cp vehicle_hash_map_sample.yaml vehicle_hash_map.yaml
 ```
+
+## Sample rosbag 再生時の地図チラつきについて
+
+use_sim_time + rosbag の `--clock` で再生すると、RViz が「Detected jump back in time」を検出するたびに表示をリセットし、地図などが激しくチラつくことがある。
+
+**原因**: tf2 が「現在より過去のタイムスタンプ」のメッセージを受信すると時間逆行と判断し、RViz はその都度リセットする。`--clock` の高頻度 publish やバッグ内メッセージの届く順序により、再生中に何千回も検出されることがある。
+
+**スクリプト側の対策**（`launch_autoware.sh`）:
+- sample rosbag 時は再生を**先に開始**し、/clock を流してから launch。
+- `--clock 40`（40Hz）、`--read-ahead-queue-size 5000` でメッセージ順の安定化を図る。
+- **sample rosbag 時は RViz を launch に含めない**（チラつき防止）。起動時に表示されるコマンドを別ターミナルで実行すると RViz を表示できる。従来どおり launch に含めたい場合は `SAMPLE_ROSBAG_LAUNCH_RVIZ=true` を付けて実行。
+
+**RViz を別ターミナルで起動する例**（表示されたコマンドをコピーして実行）:
+```bash
+source <autoware_install>/install/setup.bash && ros2 run rviz2 rviz2 -d <autoware_install>/install/autoware_launch/share/autoware_launch/rviz/autoware.rviz --ros-args -p use_sim_time:=true
+```
+
+**従来どおり launch に RViz を含める（チラつきは出る）**:
+```bash
+SAMPLE_ROSBAG_LAUNCH_RVIZ=true ./launch_autoware.sh <MAP_PATH> <ROSBAG_PATH> ...
+```
