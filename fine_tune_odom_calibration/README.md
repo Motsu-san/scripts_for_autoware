@@ -40,7 +40,6 @@ Autoware のビルド済みワークスペースをカレントディレクト�
 
 ```bash
 cd ~/autoware
-GNSS_RECEIVER=septentrio \
 ~/scripts_for_autoware/fine_tune_odom_calibration/fine_tune_odom_calibration.sh \
   <MAP_PATH> <SOURCE_ROSBAG> \
   --mean-ndt-pose-yaml <mean_ndt_pose.yaml>
@@ -79,7 +78,7 @@ GNSS_RECEIVER=septentrio \
 | 変数 | 説明 |
 |---|---|
 | `AUTOWARE_WS` | Autoware ワークスペース（既定: カレントディレクトリ） |
-| `GNSS_RECEIVER` | GNSS プリセット（`ublox` / `septentrio`） |
+| `GNSS_RECEIVER` | sensing の GNSS プリセット（`ublox` / `septentrio`）。既定 `septentrio` なので `ublox` の場合のみ指定 |
 | `POSE_TOPIC` | 較正 pose トピック（`--pose-topic` と同義） |
 | `EXTRA_LAUNCH_ARGS` | `launch_autoware.sh` に渡す追加引数（`-t` / `-T` はこちらが優先） |
 | `SKIP_LAUNCH=1` | launch をスキップし既存の録画 bag で calibrate のみ実行 |
