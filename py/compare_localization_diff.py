@@ -15,12 +15,12 @@
 # limitations under the License.
 
 """
-lidar_marker_localizerの有無でLocalizationの位置姿勢の差を比較するスクリプト
+Localizationの位置姿勢の差を比較するスクリプト
 
 使用方法:
     python3 compare_localization_diff.py \
-        --bag1 /path/to/bag_with_lidar_marker \
-        --bag2 /path/to/bag_without_lidar_marker \
+        --target_bag /path/to/target_bag \
+        --reference_bag /path/to/reference_bag \
         --output_dir ./output
 """
 
@@ -294,6 +294,75 @@ def read_kinematic_state_from_bag(bag_path: str, topic_name: str = "/localizatio
     return data_list
 
 
+def read_diff_pose_from_bag(bag_path: str, topic_name: str = "/localization/pose_twist_fusion_filter/pose_instability_detector/debug/diff_pose") -> List[Tuple[float, dict]]:
+    """
+    rosbag2からdiff_poseトピックを読み込む
+
+    Args:
+        bag_path: rosbag2のパス
+        topic_name: トピック名
+
+    Returns:
+        [(timestamp_ns, pose_data), ...] のリスト
+        pose_dataは {'x', 'y', 'z', 'roll', 'pitch', 'yaw'} を含む辞書
+    """
+    # rosbag2ディレクトリを探す
+    actual_bag_path = find_rosbag2_directory(bag_path)
+    if actual_bag_path != bag_path:
+        print(f"  Note: Detected rosbag2 directory: {actual_bag_path}")
+
+    storage_options = StorageOptions(uri=actual_bag_path, storage_id='sqlite3')
+    converter_options = ConverterOptions(
+        input_serialization_format='cdr',
+        output_serialization_format='cdr'
+    )
+
+    reader = SequentialReader()
+    reader.open(storage_options, converter_options)
+
+    topic_types = reader.get_all_topics_and_types()
+    type_map = {topic_types[i].name: topic_types[i].type for i in range(len(topic_types))}
+
+    # トピックが存在するかチェック
+    if topic_name not in type_map:
+        print(f"  Warning: Topic {topic_name} not found in bag")
+        return []
+
+    data_list = []
+
+    while reader.has_next():
+        (topic, data, timestamp) = reader.read_next()
+        if topic == topic_name:
+            msg_type = get_message(type_map[topic])
+            msg = deserialize_message(data, msg_type)
+
+            # 位置情報を取得
+            x = msg.pose.position.x
+            y = msg.pose.position.y
+            z = msg.pose.position.z
+
+            # 姿勢情報を取得 (quaternion -> euler)
+            qx = msg.pose.orientation.x
+            qy = msg.pose.orientation.y
+            qz = msg.pose.orientation.z
+            qw = msg.pose.orientation.w
+
+            roll, pitch, yaw = quaternion_to_euler(qx, qy, qz, qw)
+
+            pose_data = {
+                'x': x,
+                'y': y,
+                'z': z,
+                'roll': roll,
+                'pitch': pitch,
+                'yaw': yaw
+            }
+
+            data_list.append((timestamp, pose_data))
+
+    return data_list
+
+
 def interpolate_pose(data_list: List[Tuple[float, dict]], target_timestamp: int) -> dict:
     """
     タイムスタンプで補間してposeを取得
@@ -351,82 +420,82 @@ def interpolate_pose(data_list: List[Tuple[float, dict]], target_timestamp: int)
 
 
 def calculate_differences(
-    base_data: List[Tuple[float, dict]],
-    compare_data: List[Tuple[float, dict]],
+    reference_data: List[Tuple[float, dict]],
+    target_data: List[Tuple[float, dict]],
     use_vehicle_frame: bool = True
 ) -> Tuple[List[Tuple[float, dict]], List[Tuple[float, dict]], List[Tuple[float, dict]]]:
     """
-    基準データと比較データの差分を計算
+    比較基準データと比較対象データの差分を計算
 
     車両座標系での差分を計算する場合:
-    - 基準データの姿勢を基準として、比較データの位置を車両座標系に変換
-    - 位置差分: 基準データの姿勢で回転させた後の差分（前後/左右/上下方向）
-    - 姿勢差分: 基準データの姿勢を基準とした相対姿勢
+    - 比較基準データの姿勢を基準として、比較対象データの位置を車両座標系に変換
+    - 位置差分: 比較基準データの姿勢で回転させた後の差分（前後/左右/上下方向）
+    - 姿勢差分: 比較基準データの姿勢を基準とした相対姿勢
 
     Args:
-        base_data: 基準となるデータ [(timestamp_ns, pose_data), ...]
-        compare_data: 比較するデータ [(timestamp_ns, pose_data), ...]
+        reference_data: 比較基準となるデータ [(timestamp_ns, pose_data), ...]
+        target_data: 比較対象のデータ [(timestamp_ns, pose_data), ...]
         use_vehicle_frame: Trueの場合、車両座標系で計算。Falseの場合、グローバル座標系で計算
 
     Returns:
-        (diff_list, base_pose_list, compare_pose_list) のタプル
+        (diff_list, reference_pose_list, target_pose_list) のタプル
         - diff_list: [(timestamp_ns, diff_data), ...] のリスト
           diff_dataは {'x', 'y', 'z', 'roll', 'pitch', 'yaw'} の差分を含む
-        - base_pose_list: [(timestamp_ns, pose_data), ...] のリスト（基準データの位置姿勢）
-        - compare_pose_list: [(timestamp_ns, pose_data), ...] のリスト（比較データの位置姿勢）
+        - reference_pose_list: [(timestamp_ns, pose_data), ...] のリスト（比較基準データの位置姿勢）
+        - target_pose_list: [(timestamp_ns, pose_data), ...] のリスト（比較対象データの位置姿勢）
     """
     # 共通のタイムスタンプ範囲を取得
-    base_start = base_data[0][0]
-    base_end = base_data[-1][0]
-    compare_start = compare_data[0][0]
-    compare_end = compare_data[-1][0]
+    reference_start = reference_data[0][0]
+    reference_end = reference_data[-1][0]
+    target_start = target_data[0][0]
+    target_end = target_data[-1][0]
 
-    start_time = max(base_start, compare_start)
-    end_time = min(base_end, compare_end)
+    start_time = max(reference_start, target_start)
+    end_time = min(reference_end, target_end)
 
     if start_time >= end_time:
         raise ValueError("No overlapping time range between bags")
 
-    # 基準データのタイムスタンプに合わせて差分を計算
+    # 比較基準データのタイムスタンプに合わせて差分を計算
     diff_list = []
-    base_pose_list = []
-    compare_pose_list = []
-    for timestamp, base_pose in base_data:
+    reference_pose_list = []
+    target_pose_list = []
+    for timestamp, reference_pose in reference_data:
         if timestamp < start_time or timestamp > end_time:
             continue
 
-        # 比較データから同じタイムスタンプのposeを補間
-        compare_pose = interpolate_pose(compare_data, timestamp)
+        # 比較対象データから同じタイムスタンプのposeを補間
+        target_pose = interpolate_pose(target_data, timestamp)
 
         if use_vehicle_frame:
             # 車両座標系での差分計算
-            # 基準データの姿勢から回転行列を計算
-            base_rotation = Rotation.from_euler('xyz', [
-                base_pose['roll'],
-                base_pose['pitch'],
-                base_pose['yaw']
+            # 比較基準データの姿勢から回転行列を計算
+            reference_rotation = Rotation.from_euler('xyz', [
+                reference_pose['roll'],
+                reference_pose['pitch'],
+                reference_pose['yaw']
             ])
-            base_rotation_matrix = base_rotation.as_matrix()
+            reference_rotation_matrix = reference_rotation.as_matrix()
 
-            # 比較データの位置を基準データの位置で平行移動
+            # 比較対象データの位置を比較基準データの位置で平行移動
             pos_diff_global = np.array([
-                compare_pose['x'] - base_pose['x'],
-                compare_pose['y'] - base_pose['y'],
-                compare_pose['z'] - base_pose['z']
+                target_pose['x'] - reference_pose['x'],
+                target_pose['y'] - reference_pose['y'],
+                target_pose['z'] - reference_pose['z']
             ])
 
-            # 基準データの姿勢で回転させて車両座標系に変換
+            # 比較基準データの姿勢で回転させて車両座標系に変換
             # 回転行列の転置（逆回転）を適用
-            pos_diff_vehicle = base_rotation_matrix.T @ pos_diff_global
+            pos_diff_vehicle = reference_rotation_matrix.T @ pos_diff_global
 
-            # 姿勢差分: 比較データの姿勢を基準データの姿勢で回転
-            compare_rotation = Rotation.from_euler('xyz', [
-                compare_pose['roll'],
-                compare_pose['pitch'],
-                compare_pose['yaw']
+            # 姿勢差分: 比較対象データの姿勢を比較基準データの姿勢で回転
+            target_rotation = Rotation.from_euler('xyz', [
+                target_pose['roll'],
+                target_pose['pitch'],
+                target_pose['yaw']
             ])
-            # 相対回転: base_rotation^-1 * compare_rotation
-            relative_rotation = base_rotation.inv() * compare_rotation
+            # 相対回転: reference_rotation^-1 * target_rotation
+            relative_rotation = reference_rotation.inv() * target_rotation
             relative_euler = relative_rotation.as_euler('xyz')
 
             diff_data = {
@@ -440,12 +509,12 @@ def calculate_differences(
         else:
             # グローバル座標系での差分計算（従来の方法）
             diff_data = {
-                'x': compare_pose['x'] - base_pose['x'],
-                'y': compare_pose['y'] - base_pose['y'],
-                'z': compare_pose['z'] - base_pose['z'],
-                'roll': compare_pose['roll'] - base_pose['roll'],
-                'pitch': compare_pose['pitch'] - base_pose['pitch'],
-                'yaw': compare_pose['yaw'] - base_pose['yaw']
+                'x': target_pose['x'] - reference_pose['x'],
+                'y': target_pose['y'] - reference_pose['y'],
+                'z': target_pose['z'] - reference_pose['z'],
+                'roll': target_pose['roll'] - reference_pose['roll'],
+                'pitch': target_pose['pitch'] - reference_pose['pitch'],
+                'yaw': target_pose['yaw'] - reference_pose['yaw']
             }
 
         # roll, pitch, yawの差分を-πからπの範囲に正規化
@@ -457,34 +526,34 @@ def calculate_differences(
 
         diff_list.append((timestamp, diff_data))
         # 地図座標系での位置姿勢も保存
-        base_pose_list.append((timestamp, base_pose.copy()))
-        compare_pose_list.append((timestamp, compare_pose.copy()))
+        reference_pose_list.append((timestamp, reference_pose.copy()))
+        target_pose_list.append((timestamp, target_pose.copy()))
 
-    return diff_list, base_pose_list, compare_pose_list
+    return diff_list, reference_pose_list, target_pose_list
 
 
 def plot_differences(
     diff_list: List[Tuple[float, dict]],
-    base_pose_list: List[Tuple[float, dict]],
-    compare_pose_list: List[Tuple[float, dict]],
+    reference_pose_list: List[Tuple[float, dict]],
+    target_pose_list: List[Tuple[float, dict]],
     output_dir: str,
-    bag1_name: str,
-    bag2_name: str,
-    bag1_path: str = None,
-    bag2_path: str = None
+    reference_name: str,
+    target_name: str,
+    reference_path: str = None,
+    target_path: str = None
 ):
     """
     差分データをグラフ表示
 
     Args:
         diff_list: [(timestamp_ns, diff_data), ...] のリスト
-        base_pose_list: [(timestamp_ns, pose_data), ...] のリスト（基準データの位置姿勢）
-        compare_pose_list: [(timestamp_ns, pose_data), ...] のリスト（比較データの位置姿勢）
+        reference_pose_list: [(timestamp_ns, pose_data), ...] のリスト（比較基準データの位置姿勢）
+        target_pose_list: [(timestamp_ns, pose_data), ...] のリスト（比較対象データの位置姿勢）
         output_dir: 出力ディレクトリ
-        bag1_name: 基準bagの名前
-        bag2_name: 比較bagの名前
-        bag1_path: 基準bagのパス（lidar_marker_localizerの連続区間検出用）
-        bag2_path: 比較bagのパス（lidar_marker_localizerの連続区間検出用）
+        reference_name: 比較基準bagの名前
+        target_name: 比較対象bagの名前
+        reference_path: 比較基準bagのパス（lidar_marker_localizerの連続区間検出用）
+        target_path: 比較対象bagのパス（lidar_marker_localizerの連続区間検出用）
     """
     if len(diff_list) == 0:
         print("Warning: No difference data available")
@@ -494,13 +563,13 @@ def plot_differences(
     start_time = diff_list[0][0]
     times = [(ts - start_time) / 1e9 for ts, _ in diff_list]  # nanoseconds to seconds
 
-    # lidar_marker_localizerの連続出力区間を検出（bag1がlidar_marker_localizerありの場合）
+    # lidar_marker_localizerの連続出力区間を検出（referenceがlidar_marker_localizerありの場合）
     lidar_marker_intervals = []
-    if bag1_path:
+    if reference_path:
         debug_topic = "/localization/pose_estimator/lidar_marker_localizer/top_left/lidar_marker_localizer/debug/pose_with_covariance"
         try:
             print(f"Detecting continuous intervals for {debug_topic}...")
-            timestamps = read_topic_timestamps(bag1_path, debug_topic)
+            timestamps = read_topic_timestamps(reference_path, debug_topic)
             if len(timestamps) > 0:
                 # 180ms = 180000000 nanoseconds
                 intervals = find_continuous_intervals(timestamps, max_gap_ns=180000000)
@@ -533,7 +602,7 @@ def plot_differences(
 
     # グラフを作成
     fig, axes = plt.subplots(3, 2, figsize=(14, 10))
-    fig.suptitle(f'Localization Difference Comparison\nReference: {bag1_name} vs Compare: {bag2_name}', fontsize=14)
+    fig.suptitle(f'Localization Difference Comparison\nReference: {reference_name} vs Target: {target_name}', fontsize=14)
 
     # 位置の差分（車両座標系）
     axes[0, 0].plot(times, x_diff, label='x', linewidth=1.5)
@@ -602,46 +671,46 @@ def plot_differences(
     # 地図座標系での位置姿勢値のグラフを作成
     plt.close(fig)  # 前のグラフを閉じる
 
-    # 基準データと比較データのタイムスタンプを秒に変換
-    base_start_time = base_pose_list[0][0]
-    base_times = [(ts - base_start_time) / 1e9 for ts, _ in base_pose_list]
+    # 比較基準データと比較対象データのタイムスタンプを秒に変換
+    reference_start_time = reference_pose_list[0][0]
+    reference_times = [(ts - reference_start_time) / 1e9 for ts, _ in reference_pose_list]
 
-    compare_start_time = compare_pose_list[0][0]
-    compare_times = [(ts - compare_start_time) / 1e9 for ts, _ in compare_pose_list]
+    target_start_time = target_pose_list[0][0]
+    target_times = [(ts - target_start_time) / 1e9 for ts, _ in target_pose_list]
 
     # データを抽出
-    base_x = [p['x'] for _, p in base_pose_list]
-    base_y = [p['y'] for _, p in base_pose_list]
-    base_z = [p['z'] for _, p in base_pose_list]
-    base_roll = [math.degrees(p['roll']) for _, p in base_pose_list]
-    base_pitch = [math.degrees(p['pitch']) for _, p in base_pose_list]
-    base_yaw = [math.degrees(p['yaw']) for _, p in base_pose_list]
+    reference_x = [p['x'] for _, p in reference_pose_list]
+    reference_y = [p['y'] for _, p in reference_pose_list]
+    reference_z = [p['z'] for _, p in reference_pose_list]
+    reference_roll = [math.degrees(p['roll']) for _, p in reference_pose_list]
+    reference_pitch = [math.degrees(p['pitch']) for _, p in reference_pose_list]
+    reference_yaw = [math.degrees(p['yaw']) for _, p in reference_pose_list]
 
-    compare_x = [p['x'] for _, p in compare_pose_list]
-    compare_y = [p['y'] for _, p in compare_pose_list]
-    compare_z = [p['z'] for _, p in compare_pose_list]
-    compare_roll = [math.degrees(p['roll']) for _, p in compare_pose_list]
-    compare_pitch = [math.degrees(p['pitch']) for _, p in compare_pose_list]
-    compare_yaw = [math.degrees(p['yaw']) for _, p in compare_pose_list]
+    target_x = [p['x'] for _, p in target_pose_list]
+    target_y = [p['y'] for _, p in target_pose_list]
+    target_z = [p['z'] for _, p in target_pose_list]
+    target_roll = [math.degrees(p['roll']) for _, p in target_pose_list]
+    target_pitch = [math.degrees(p['pitch']) for _, p in target_pose_list]
+    target_yaw = [math.degrees(p['yaw']) for _, p in target_pose_list]
 
     # 位置姿勢値のグラフを作成
     fig2, axes2 = plt.subplots(3, 2, figsize=(14, 10))
-    fig2.suptitle(f'Localization Pose Comparison (Map Frame)\nReference: {bag1_name} vs Compare: {bag2_name}', fontsize=14)
+    fig2.suptitle(f'Localization Pose Comparison (Map Frame)\nReference: {reference_name} vs Target: {target_name}', fontsize=14)
 
-    # lidar_marker_localizerの連続区間を地図座標系のグラフにも適用（base_start_timeを基準に変換）
+    # lidar_marker_localizerの連続区間を地図座標系のグラフにも適用（reference_start_timeを基準に変換）
     lidar_marker_intervals_map = []
-    if bag1_path and len(lidar_marker_intervals) > 0:
+    if reference_path and len(lidar_marker_intervals) > 0:
         for start_sec, end_sec in lidar_marker_intervals:
-            # diff_listのstart_timeを基準にしているので、base_start_timeに変換
-            start_ts_map = base_start_time + int(start_sec * 1e9)
-            end_ts_map = base_start_time + int(end_sec * 1e9)
-            start_sec_map = (start_ts_map - base_start_time) / 1e9
-            end_sec_map = (end_ts_map - base_start_time) / 1e9
+            # diff_listのstart_timeを基準にしているので、reference_start_timeに変換
+            start_ts_map = reference_start_time + int(start_sec * 1e9)
+            end_ts_map = reference_start_time + int(end_sec * 1e9)
+            start_sec_map = (start_ts_map - reference_start_time) / 1e9
+            end_sec_map = (end_ts_map - reference_start_time) / 1e9
             lidar_marker_intervals_map.append((start_sec_map, end_sec_map))
 
     # 位置の比較
-    axes2[0, 0].plot(base_times, base_x, label=f'{bag1_name} (base)', linewidth=1.5, color='blue')
-    axes2[0, 0].plot(compare_times, compare_x, label=f'{bag2_name} (compare)', linewidth=1.5, color='red', linestyle='--')
+    axes2[0, 0].plot(reference_times, reference_x, label=f'{reference_name} (reference)', linewidth=1.5, color='blue')
+    axes2[0, 0].plot(target_times, target_x, label=f'{target_name} (target)', linewidth=1.5, color='red', linestyle='--')
     for start_sec, end_sec in lidar_marker_intervals_map:
         axes2[0, 0].axvspan(start_sec, end_sec, alpha=0.2, color='green', label='lidar_marker_active' if start_sec == lidar_marker_intervals_map[0][0] else '')
     axes2[0, 0].set_xlabel('Time [s]')
@@ -650,8 +719,8 @@ def plot_differences(
     axes2[0, 0].grid(True)
     axes2[0, 0].legend()
 
-    axes2[0, 1].plot(base_times, base_y, label=f'{bag1_name} (base)', linewidth=1.5, color='blue')
-    axes2[0, 1].plot(compare_times, compare_y, label=f'{bag2_name} (compare)', linewidth=1.5, color='red', linestyle='--')
+    axes2[0, 1].plot(reference_times, reference_y, label=f'{reference_name} (reference)', linewidth=1.5, color='blue')
+    axes2[0, 1].plot(target_times, target_y, label=f'{target_name} (target)', linewidth=1.5, color='red', linestyle='--')
     for start_sec, end_sec in lidar_marker_intervals_map:
         axes2[0, 1].axvspan(start_sec, end_sec, alpha=0.2, color='green')
     axes2[0, 1].set_xlabel('Time [s]')
@@ -660,8 +729,8 @@ def plot_differences(
     axes2[0, 1].grid(True)
     axes2[0, 1].legend()
 
-    axes2[1, 0].plot(base_times, base_z, label=f'{bag1_name} (base)', linewidth=1.5, color='blue')
-    axes2[1, 0].plot(compare_times, compare_z, label=f'{bag2_name} (compare)', linewidth=1.5, color='red', linestyle='--')
+    axes2[1, 0].plot(reference_times, reference_z, label=f'{reference_name} (reference)', linewidth=1.5, color='blue')
+    axes2[1, 0].plot(target_times, target_z, label=f'{target_name} (target)', linewidth=1.5, color='red', linestyle='--')
     for start_sec, end_sec in lidar_marker_intervals_map:
         axes2[1, 0].axvspan(start_sec, end_sec, alpha=0.2, color='green')
     axes2[1, 0].set_xlabel('Time [s]')
@@ -671,8 +740,8 @@ def plot_differences(
     axes2[1, 0].legend()
 
     # 姿勢の比較
-    axes2[1, 1].plot(base_times, base_roll, label=f'{bag1_name} (base)', linewidth=1.5, color='blue')
-    axes2[1, 1].plot(compare_times, compare_roll, label=f'{bag2_name} (compare)', linewidth=1.5, color='red', linestyle='--')
+    axes2[1, 1].plot(reference_times, reference_roll, label=f'{reference_name} (reference)', linewidth=1.5, color='blue')
+    axes2[1, 1].plot(target_times, target_roll, label=f'{target_name} (target)', linewidth=1.5, color='red', linestyle='--')
     for start_sec, end_sec in lidar_marker_intervals_map:
         axes2[1, 1].axvspan(start_sec, end_sec, alpha=0.2, color='green')
     axes2[1, 1].set_xlabel('Time [s]')
@@ -681,8 +750,8 @@ def plot_differences(
     axes2[1, 1].grid(True)
     axes2[1, 1].legend()
 
-    axes2[2, 0].plot(base_times, base_pitch, label=f'{bag1_name} (base)', linewidth=1.5, color='blue')
-    axes2[2, 0].plot(compare_times, compare_pitch, label=f'{bag2_name} (compare)', linewidth=1.5, color='red', linestyle='--')
+    axes2[2, 0].plot(reference_times, reference_pitch, label=f'{reference_name} (reference)', linewidth=1.5, color='blue')
+    axes2[2, 0].plot(target_times, target_pitch, label=f'{target_name} (target)', linewidth=1.5, color='red', linestyle='--')
     for start_sec, end_sec in lidar_marker_intervals_map:
         axes2[2, 0].axvspan(start_sec, end_sec, alpha=0.2, color='green')
     axes2[2, 0].set_xlabel('Time [s]')
@@ -691,8 +760,8 @@ def plot_differences(
     axes2[2, 0].grid(True)
     axes2[2, 0].legend()
 
-    axes2[2, 1].plot(base_times, base_yaw, label=f'{bag1_name} (base)', linewidth=1.5, color='blue')
-    axes2[2, 1].plot(compare_times, compare_yaw, label=f'{bag2_name} (compare)', linewidth=1.5, color='red', linestyle='--')
+    axes2[2, 1].plot(reference_times, reference_yaw, label=f'{reference_name} (reference)', linewidth=1.5, color='blue')
+    axes2[2, 1].plot(target_times, target_yaw, label=f'{target_name} (target)', linewidth=1.5, color='red', linestyle='--')
     for start_sec, end_sec in lidar_marker_intervals_map:
         axes2[2, 1].axvspan(start_sec, end_sec, alpha=0.2, color='green')
     axes2[2, 1].set_xlabel('Time [s]')
@@ -738,21 +807,211 @@ def plot_differences(
     print(f"CSV data saved: {csv_path}")
 
     # 地図座標系での位置姿勢値も保存
-    base_times = [(ts - base_pose_list[0][0]) / 1e9 for ts, _ in base_pose_list]
-    compare_times = [(ts - compare_pose_list[0][0]) / 1e9 for ts, _ in compare_pose_list]
+    reference_times = [(ts - reference_pose_list[0][0]) / 1e9 for ts, _ in reference_pose_list]
+    target_times = [(ts - target_pose_list[0][0]) / 1e9 for ts, _ in target_pose_list]
 
     csv_pose_path = Path(output_dir) / 'localization_pose_data.csv'
     with open(csv_pose_path, 'w') as f:
-        f.write("time[s],base_x[m],base_y[m],base_z[m],base_roll[deg],base_pitch[deg],base_yaw[deg],"
-               f"compare_x[m],compare_y[m],compare_z[m],compare_roll[deg],compare_pitch[deg],compare_yaw[deg]\n")
-        for i, ((ts_base, base_pose), (ts_compare, compare_pose)) in enumerate(zip(base_pose_list, compare_pose_list)):
-            time_val = base_times[i] if i < len(base_times) else compare_times[i] if i < len(compare_times) else i
+        f.write("time[s],reference_x[m],reference_y[m],reference_z[m],reference_roll[deg],reference_pitch[deg],reference_yaw[deg],"
+               f"target_x[m],target_y[m],target_z[m],target_roll[deg],target_pitch[deg],target_yaw[deg]\n")
+        for i, ((ts_reference, reference_pose), (ts_target, target_pose)) in enumerate(zip(reference_pose_list, target_pose_list)):
+            time_val = reference_times[i] if i < len(reference_times) else target_times[i] if i < len(target_times) else i
             f.write(f"{time_val:.6f},"
-                   f"{base_pose['x']:.6f},{base_pose['y']:.6f},{base_pose['z']:.6f},"
-                   f"{math.degrees(base_pose['roll']):.6f},{math.degrees(base_pose['pitch']):.6f},{math.degrees(base_pose['yaw']):.6f},"
-                   f"{compare_pose['x']:.6f},{compare_pose['y']:.6f},{compare_pose['z']:.6f},"
-                   f"{math.degrees(compare_pose['roll']):.6f},{math.degrees(compare_pose['pitch']):.6f},{math.degrees(compare_pose['yaw']):.6f}\n")
+                   f"{reference_pose['x']:.6f},{reference_pose['y']:.6f},{reference_pose['z']:.6f},"
+                   f"{math.degrees(reference_pose['roll']):.6f},{math.degrees(reference_pose['pitch']):.6f},{math.degrees(reference_pose['yaw']):.6f},"
+                   f"{target_pose['x']:.6f},{target_pose['y']:.6f},{target_pose['z']:.6f},"
+                   f"{math.degrees(target_pose['roll']):.6f},{math.degrees(target_pose['pitch']):.6f},{math.degrees(target_pose['yaw']):.6f}\n")
     print(f"Pose data (map frame) saved: {csv_pose_path}")
+
+
+def plot_diff_pose(
+    reference_diff_pose: List[Tuple[float, dict]],
+    target_diff_pose: List[Tuple[float, dict]],
+    output_dir: str,
+    reference_name: str,
+    target_name: str,
+    reference_path: str = None,
+    target_path: str = None
+):
+    """
+    diff_poseデータをグラフ表示
+
+    Args:
+        reference_diff_pose: 比較基準bagのdiff_poseデータ [(timestamp_ns, pose_data), ...]
+        target_diff_pose: 比較対象bagのdiff_poseデータ [(timestamp_ns, pose_data), ...]
+        output_dir: 出力ディレクトリ
+        reference_name: 比較基準bagの名前
+        target_name: 比較対象bagの名前
+        reference_path: 比較基準bagのパス（lidar_marker_localizerの連続区間検出用）
+        target_path: 比較対象bagのパス（lidar_marker_localizerの連続区間検出用）
+    """
+    if len(reference_diff_pose) == 0 and len(target_diff_pose) == 0:
+        print("Warning: No diff_pose data available")
+        return
+
+    # タイムスタンプを秒に変換（最初のタイムスタンプを0秒とする）
+    all_timestamps = []
+    if len(reference_diff_pose) > 0:
+        all_timestamps.append(reference_diff_pose[0][0])
+    if len(target_diff_pose) > 0:
+        all_timestamps.append(target_diff_pose[0][0])
+
+    if len(all_timestamps) == 0:
+        return
+
+    start_time = min(all_timestamps)
+
+    # lidar_marker_localizerの連続出力区間を検出
+    lidar_marker_intervals = []
+    if reference_path:
+        debug_topic = "/localization/pose_estimator/lidar_marker_localizer/top_left/lidar_marker_localizer/debug/pose_with_covariance"
+        try:
+            print(f"Detecting continuous intervals for {debug_topic} (diff_pose graph)...")
+            timestamps = read_topic_timestamps(reference_path, debug_topic)
+            if len(timestamps) > 0:
+                # 180ms = 180000000 nanoseconds
+                intervals = find_continuous_intervals(timestamps, max_gap_ns=180000000)
+                # タイムスタンプを秒に変換（start_timeを基準に）
+                for start_ts, end_ts in intervals:
+                    start_sec = (start_ts - start_time) / 1e9
+                    end_sec = (end_ts - start_time) / 1e9
+                    lidar_marker_intervals.append((start_sec, end_sec))
+                if len(lidar_marker_intervals) > 0:
+                    print(f"  Found {len(intervals)} continuous intervals")
+            else:
+                print(f"  No messages found for {debug_topic}")
+        except Exception as e:
+            print(f"  Warning: Failed to detect intervals: {e}")
+
+    # データを抽出
+    reference_times = [(ts - start_time) / 1e9 for ts, _ in reference_diff_pose] if len(reference_diff_pose) > 0 else []
+    reference_x = [d['x'] for _, d in reference_diff_pose] if len(reference_diff_pose) > 0 else []
+    reference_y = [d['y'] for _, d in reference_diff_pose] if len(reference_diff_pose) > 0 else []
+    reference_z = [d['z'] for _, d in reference_diff_pose] if len(reference_diff_pose) > 0 else []
+    reference_roll = [math.degrees(d['roll']) for _, d in reference_diff_pose] if len(reference_diff_pose) > 0 else []
+    reference_pitch = [math.degrees(d['pitch']) for _, d in reference_diff_pose] if len(reference_diff_pose) > 0 else []
+    reference_yaw = [math.degrees(d['yaw']) for _, d in reference_diff_pose] if len(reference_diff_pose) > 0 else []
+
+    target_times = [(ts - start_time) / 1e9 for ts, _ in target_diff_pose] if len(target_diff_pose) > 0 else []
+    target_x = [d['x'] for _, d in target_diff_pose] if len(target_diff_pose) > 0 else []
+    target_y = [d['y'] for _, d in target_diff_pose] if len(target_diff_pose) > 0 else []
+    target_z = [d['z'] for _, d in target_diff_pose] if len(target_diff_pose) > 0 else []
+    target_roll = [math.degrees(d['roll']) for _, d in target_diff_pose] if len(target_diff_pose) > 0 else []
+    target_pitch = [math.degrees(d['pitch']) for _, d in target_diff_pose] if len(target_diff_pose) > 0 else []
+    target_yaw = [math.degrees(d['yaw']) for _, d in target_diff_pose] if len(target_diff_pose) > 0 else []
+
+    # グラフを作成
+    fig, axes = plt.subplots(3, 2, figsize=(14, 10))
+    fig.suptitle(f'Pose Instability Detector diff_pose\n{reference_name} vs {target_name}', fontsize=14)
+
+    # 位置のグラフ
+    if len(reference_x) > 0:
+        axes[0, 0].plot(reference_times, reference_x, label=f'{reference_name}', linewidth=1.5, color='blue')
+    if len(target_x) > 0:
+        axes[0, 0].plot(target_times, target_x, label=f'{target_name}', linewidth=1.5, color='red', linestyle='--')
+    if len(lidar_marker_intervals) > 0:
+        for i, (start_sec, end_sec) in enumerate(lidar_marker_intervals):
+            axes[0, 0].axvspan(start_sec, end_sec, alpha=0.2, color='green', label='lidar_marker_active' if i == 0 else '')
+    axes[0, 0].set_xlabel('Time [s]')
+    axes[0, 0].set_ylabel('Position X [m]')
+    axes[0, 0].set_title('X Position (diff_pose)')
+    axes[0, 0].grid(True)
+    axes[0, 0].legend()
+
+    if len(reference_y) > 0:
+        axes[0, 1].plot(reference_times, reference_y, label=f'{reference_name}', linewidth=1.5, color='blue')
+    if len(target_y) > 0:
+        axes[0, 1].plot(target_times, target_y, label=f'{target_name}', linewidth=1.5, color='red', linestyle='--')
+    if len(lidar_marker_intervals) > 0:
+        for start_sec, end_sec in lidar_marker_intervals:
+            axes[0, 1].axvspan(start_sec, end_sec, alpha=0.2, color='green')
+    axes[0, 1].set_xlabel('Time [s]')
+    axes[0, 1].set_ylabel('Position Y [m]')
+    axes[0, 1].set_title('Y Position (diff_pose)')
+    axes[0, 1].grid(True)
+    axes[0, 1].legend()
+
+    if len(reference_z) > 0:
+        axes[1, 0].plot(reference_times, reference_z, label=f'{reference_name}', linewidth=1.5, color='blue')
+    if len(target_z) > 0:
+        axes[1, 0].plot(target_times, target_z, label=f'{target_name}', linewidth=1.5, color='red', linestyle='--')
+    if len(lidar_marker_intervals) > 0:
+        for start_sec, end_sec in lidar_marker_intervals:
+            axes[1, 0].axvspan(start_sec, end_sec, alpha=0.2, color='green')
+    axes[1, 0].set_xlabel('Time [s]')
+    axes[1, 0].set_ylabel('Position Z [m]')
+    axes[1, 0].set_title('Z Position (diff_pose)')
+    axes[1, 0].grid(True)
+    axes[1, 0].legend()
+
+    # 姿勢のグラフ
+    if len(reference_roll) > 0:
+        axes[1, 1].plot(reference_times, reference_roll, label=f'{reference_name}', linewidth=1.5, color='blue')
+    if len(target_roll) > 0:
+        axes[1, 1].plot(target_times, target_roll, label=f'{target_name}', linewidth=1.5, color='red', linestyle='--')
+    if len(lidar_marker_intervals) > 0:
+        for start_sec, end_sec in lidar_marker_intervals:
+            axes[1, 1].axvspan(start_sec, end_sec, alpha=0.2, color='green')
+    axes[1, 1].set_xlabel('Time [s]')
+    axes[1, 1].set_ylabel('Roll [deg]')
+    axes[1, 1].set_title('Roll Orientation (diff_pose)')
+    axes[1, 1].grid(True)
+    axes[1, 1].legend()
+
+    if len(reference_pitch) > 0:
+        axes[2, 0].plot(reference_times, reference_pitch, label=f'{reference_name}', linewidth=1.5, color='blue')
+    if len(target_pitch) > 0:
+        axes[2, 0].plot(target_times, target_pitch, label=f'{target_name}', linewidth=1.5, color='red', linestyle='--')
+    if len(lidar_marker_intervals) > 0:
+        for start_sec, end_sec in lidar_marker_intervals:
+            axes[2, 0].axvspan(start_sec, end_sec, alpha=0.2, color='green')
+    axes[2, 0].set_xlabel('Time [s]')
+    axes[2, 0].set_ylabel('Pitch [deg]')
+    axes[2, 0].set_title('Pitch Orientation (diff_pose)')
+    axes[2, 0].grid(True)
+    axes[2, 0].legend()
+
+    if len(reference_yaw) > 0:
+        axes[2, 1].plot(reference_times, reference_yaw, label=f'{reference_name}', linewidth=1.5, color='blue')
+    if len(target_yaw) > 0:
+        axes[2, 1].plot(target_times, target_yaw, label=f'{target_name}', linewidth=1.5, color='red', linestyle='--')
+    if len(lidar_marker_intervals) > 0:
+        for start_sec, end_sec in lidar_marker_intervals:
+            axes[2, 1].axvspan(start_sec, end_sec, alpha=0.2, color='green')
+    axes[2, 1].set_xlabel('Time [s]')
+    axes[2, 1].set_ylabel('Yaw [deg]')
+    axes[2, 1].set_title('Yaw Orientation (diff_pose)')
+    axes[2, 1].grid(True)
+    axes[2, 1].legend()
+
+    plt.tight_layout()
+
+    # グラフを保存
+    output_path = Path(output_dir) / 'diff_pose_comparison.png'
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"diff_pose graph saved: {output_path}")
+    plt.close(fig)
+
+    # CSVファイルにも保存（referenceとtargetを別々に保存）
+    csv_path = Path(output_dir) / 'diff_pose_data.csv'
+    with open(csv_path, 'w') as f:
+        f.write("bag,time[s],x[m],y[m],z[m],roll[deg],pitch[deg],yaw[deg]\n")
+
+        # referenceのデータ
+        for i, (ts, pose_data) in enumerate(reference_diff_pose):
+            t = (ts - start_time) / 1e9
+            f.write(f"{reference_name},{t:.6f},"
+                   f"{pose_data['x']:.6f},{pose_data['y']:.6f},{pose_data['z']:.6f},"
+                   f"{math.degrees(pose_data['roll']):.6f},{math.degrees(pose_data['pitch']):.6f},{math.degrees(pose_data['yaw']):.6f}\n")
+
+        # targetのデータ
+        for i, (ts, pose_data) in enumerate(target_diff_pose):
+            t = (ts - start_time) / 1e9
+            f.write(f"{target_name},{t:.6f},"
+                   f"{pose_data['x']:.6f},{pose_data['y']:.6f},{pose_data['z']:.6f},"
+                   f"{math.degrees(pose_data['roll']):.6f},{math.degrees(pose_data['pitch']):.6f},{math.degrees(pose_data['yaw']):.6f}\n")
+
+    print(f"diff_pose CSV data saved: {csv_path}")
 
 
 def main():
@@ -760,16 +1019,16 @@ def main():
         description='lidar_marker_localizerの有無でLocalizationの位置姿勢の差を比較'
     )
     parser.add_argument(
-        '--bag1',
+        '--reference_bag',
         type=str,
         required=True,
-        help='基準となるrosbag2のパス（例: lidar_marker_localizerあり）'
+        help='比較基準となるrosbag2のパス（例: lidar_marker_localizerあり）'
     )
     parser.add_argument(
-        '--bag2',
+        '--target_bag',
         type=str,
         required=True,
-        help='比較するrosbag2のパス（例: lidar_marker_localizerなし）'
+        help='比較対象のrosbag2のパス（例: lidar_marker_localizerなし）'
     )
     parser.add_argument(
         '--output_dir',
@@ -790,33 +1049,49 @@ def main():
     os.makedirs(args.output_dir, exist_ok=True)
 
     # rosbag2からデータを読み込む
-    print(f"Loading rosbag1: {args.bag1}")
-    bag1_data = read_kinematic_state_from_bag(args.bag1, args.topic)
-    print(f"  Loaded: {len(bag1_data)} messages")
+    print(f"Loading reference bag: {args.reference_bag}")
+    reference_data = read_kinematic_state_from_bag(args.reference_bag, args.topic)
+    print(f"  Loaded: {len(reference_data)} messages")
 
-    print(f"Loading rosbag2: {args.bag2}")
-    bag2_data = read_kinematic_state_from_bag(args.bag2, args.topic)
-    print(f"  Loaded: {len(bag2_data)} messages")
+    print(f"Loading target bag: {args.target_bag}")
+    target_data = read_kinematic_state_from_bag(args.target_bag, args.topic)
+    print(f"  Loaded: {len(target_data)} messages")
 
-    if len(bag1_data) == 0:
-        print(f"Error: No data found in {args.bag1}")
+    if len(reference_data) == 0:
+        print(f"Error: No data found in {args.reference_bag}")
         return
 
-    if len(bag2_data) == 0:
-        print(f"Error: No data found in {args.bag2}")
+    if len(target_data) == 0:
+        print(f"Error: No data found in {args.target_bag}")
         return
 
-    # 差分を計算（bag1を基準に、bag2との差分を計算）
-    # 車両座標系での差分を計算（基準データの姿勢を基準とした座標系）
+    # 差分を計算（referenceを基準に、targetとの差分を計算）
+    # 車両座標系での差分を計算（比較基準データの姿勢を基準とした座標系）
     print("Calculating differences in vehicle frame...")
-    diff_list, base_pose_list, compare_pose_list = calculate_differences(bag1_data, bag2_data, use_vehicle_frame=True)
+    diff_list, reference_pose_list, target_pose_list = calculate_differences(reference_data, target_data, use_vehicle_frame=True)
     print(f"  Calculation completed: {len(diff_list)} data points")
 
     # グラフ表示と保存
-    bag1_name = Path(args.bag1).stem
-    bag2_name = Path(args.bag2).stem
+    reference_name = Path(args.reference_bag).stem
+    target_name = Path(args.target_bag).stem
     print("Creating graph...")
-    plot_differences(diff_list, base_pose_list, compare_pose_list, args.output_dir, bag1_name, bag2_name, args.bag1, args.bag2)
+    plot_differences(diff_list, reference_pose_list, target_pose_list, args.output_dir, reference_name, target_name, args.reference_bag, args.target_bag)
+
+    # diff_poseトピックの読み込みとグラフ作成
+    diff_pose_topic = "/localization/pose_twist_fusion_filter/pose_instability_detector/debug/diff_pose"
+    print(f"\nLoading diff_pose from reference bag: {args.reference_bag}")
+    reference_diff_pose = read_diff_pose_from_bag(args.reference_bag, diff_pose_topic)
+    print(f"  Loaded: {len(reference_diff_pose)} messages")
+
+    print(f"Loading diff_pose from target bag: {args.target_bag}")
+    target_diff_pose = read_diff_pose_from_bag(args.target_bag, diff_pose_topic)
+    print(f"  Loaded: {len(target_diff_pose)} messages")
+
+    if len(reference_diff_pose) > 0 or len(target_diff_pose) > 0:
+        print("Creating diff_pose graph...")
+        plot_diff_pose(reference_diff_pose, target_diff_pose, args.output_dir, reference_name, target_name, args.reference_bag, args.target_bag)
+    else:
+        print(f"  Warning: No diff_pose data found in either bag. Skipping diff_pose graph.")
 
     print("\nProcessing completed!")
 
