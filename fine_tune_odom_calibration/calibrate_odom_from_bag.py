@@ -46,7 +46,8 @@ def _read_velocity_report_fields(msg: Any) -> Optional[Tuple[float, float]]:
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _MEASURE_DIR = _SCRIPT_DIR.parent / "measure_ndt_pose_mean"
-for _p in (_SCRIPT_DIR, _MEASURE_DIR):
+_COMPARE_DIR = _SCRIPT_DIR.parent / "compare_mean_pose_yaml"
+for _p in (_SCRIPT_DIR, _MEASURE_DIR, _COMPARE_DIR):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
