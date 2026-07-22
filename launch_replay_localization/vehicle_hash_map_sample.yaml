@@ -1,0 +1,16 @@
+# Mapping of vehicle ID fragment to vehicle_model / vehicle_id / sensor_model.
+# Loaded by vehicle_configs.sh (via py/parse_vehicle_configs.py).
+# Copy this file to vehicle_hash_map.yaml and add your own vehicles.
+#
+# Each entry:
+#   fragment: Part of vehicle ID hash (expected in rosbag path or folder name)
+#   model:    Vehicle model (must match fragment)
+#   id:       Vehicle ID (must match fragment)
+#   sensor:   Sensor model (must match fragment)
+#   note:     (optional) free-form comment
+vehicles:
+  - fragment: sample
+    model: sample_vehicle
+    id: default
+    sensor: sample_sensor_kit
+    note: Autoware sample vehicle

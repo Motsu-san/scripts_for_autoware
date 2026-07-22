@@ -214,3 +214,6 @@ __marimo__/
 .cursorignore
 .cursorindexingignore
 .cursorignore
+
+# Private vehicle hash map (real data). Only the _sample template is tracked.
+launch_replay_localization/vehicle_hash_map.yaml

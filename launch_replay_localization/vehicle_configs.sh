@@ -1,17 +1,23 @@
 #!/bin/bash
 # Mapping of vehicle ID fragment to vehicle_model / vehicle_id / sensor_model.
 # Sourced by launch_autoware.sh and launch_unified_localization.sh.
-# Format: "vehicle_id_fragment|vehicle_model|vehicle_id|sensor_model"
-# Lines starting with # and empty lines are ignored.
+#
+# The data is managed in vehicle_hash_map.yaml (edit that file to add vehicles).
+# This script loads it into VEHICLE_CONFIGS as "fragment|model|id|sensor" lines
+# via py/parse_vehicle_configs.py.
 
-declare -a VEHICLE_CONFIGS=(
-    # example: "vehicle_fragment|vehicle_model|vehicle_id|sensor_model"
-    # vehicle_fragment: Part of vehicle ID hash (expected in rosbag path or folder name)
-    # vehicle_model: Vehicle model (must match vehicle_fragment)
-    # vehicle_id: Vehicle ID (must match vehicle_fragment)
-    # sensor_model: Sensor model (must match vehicle_fragment)
-    "sample|sample_vehicle|default|sample_sensor_kit" # Autoware sample vehicle
-)
+VEHICLE_CONFIGS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VEHICLE_HASH_MAP_YAML="$VEHICLE_CONFIGS_DIR/vehicle_hash_map.yaml"
+VEHICLE_CONFIGS_PARSER="$VEHICLE_CONFIGS_DIR/py/parse_vehicle_configs.py"
+
+declare -a VEHICLE_CONFIGS=()
+_vc_output="$(python3 "$VEHICLE_CONFIGS_PARSER" "$VEHICLE_HASH_MAP_YAML")"
+if [ $? -ne 0 ]; then
+    echo "Error: failed to load vehicle configs from $VEHICLE_HASH_MAP_YAML" >&2
+    return 1 2>/dev/null || exit 1
+fi
+mapfile -t VEHICLE_CONFIGS <<< "$_vc_output"
+unset _vc_output
 
 detect_vehicle_config() {
     local rosbag_path="$1"
