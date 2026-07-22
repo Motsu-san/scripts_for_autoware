@@ -33,7 +33,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIRECT_SH="$SCRIPT_DIR/measure_ndt_direct.sh"
-AGG_PY="$SCRIPT_DIR/../py/aggregate_ndt_direct_result.py"
+AGG_PY="$SCRIPT_DIR/aggregate_ndt_direct_result.py"
 AUTOWARE_WS="${AUTOWARE_WS:-$(pwd)}"
 
 usage() {

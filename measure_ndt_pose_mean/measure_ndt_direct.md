@@ -11,8 +11,8 @@ rosbag の再記録は不要です（既存 bag + 既存 `ndt_start_pose.yaml` +
 | パス | 役割 |
 |------|------|
 | `/home/motsu/autoware/src/tools/localization/ndt_direct_measure/` | C++ 実行体（`ndt_direct_measure_node`） |
-| [`sh/measure_ndt_direct.sh`](../sh/measure_ndt_direct.sh) | エントリスクリプト |
-| [`sh/measure_ndt_pose_mean.sh`](../sh/measure_ndt_pose_mean.sh) | 従来方式（Autoware 起動 + publish/subscribe） |
+| [`measure_ndt_direct.sh`](measure_ndt_direct.sh) | エントリスクリプト |
+| [`measure_ndt_pose_mean.sh`](measure_ndt_pose_mean.sh) | N 回実行 + 平均・ばらつき集計ラッパ |
 
 ---
 
@@ -52,7 +52,7 @@ source install/setup.bash
 cd /path/to/autoware_ws
 # rosbag と同じ階層に ndt_start_pose.yaml を置く
 
-AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/sh/measure_ndt_direct.sh \
+AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/measure_ndt_pose_mean/measure_ndt_direct.sh \
   /path/to/map/pointcloud_map.pcd \
   /path/to/rosbag.db3 \
   1722303384.244407296

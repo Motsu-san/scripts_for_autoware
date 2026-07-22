@@ -1,6 +1,6 @@
 # NDT 固定初期位置・1点群での姿勢平均（`measure_ndt_pose_mean`）
 
-> 現在の `sh/measure_ndt_pose_mean.sh` は、Autoware localization を起動して
+> 現在の `measure_ndt_pose_mean/measure_ndt_pose_mean.sh` は、Autoware localization を起動して
 > `/localization/pose_estimator/pose_with_covariance` を待つ旧方式ではなく、
 > `~/autoware/src/tools/localization/ndt_direct_measure` の direct NDT align を
 > `N_RUNS` 回実行し、平均 pose・ばらつき・平均 pose からの最大偏差を出力します。
@@ -16,13 +16,16 @@
 
 | パス | 役割 |
 |------|------|
-| [`sh/measure_ndt_pose_mean.sh`](../sh/measure_ndt_pose_mean.sh) | メインエントリ（起動〜試行〜集計） |
-| [`sh/launch_localization_for_ndt_measure.sh`](../sh/launch_localization_for_ndt_measure.sh) | bag **再生せず** localization スタックのみ起動し、`/clock`・`/tf_static` を補助する |
-| [`py/measure_ndt_pose_mean.py`](../py/measure_ndt_pose_mean.py) | bag から点群 1 フレーム抽出、試行ループ、JSON/YAML 出力 |
+| [`measure_ndt_pose_mean.sh`](measure_ndt_pose_mean.sh) | メインエントリ（direct NDT 実行〜集計） |
+| [`measure_ndt_direct.sh`](measure_ndt_direct.sh) | `ndt_direct_measure_node` 起動ラッパ |
+| [`aggregate_ndt_direct_result.py`](aggregate_ndt_direct_result.py) | N 回結果の平均・ばらつき集計 |
+| [`aggregate_pose_mean_from_bags.py`](aggregate_pose_mean_from_bags.py) | 平均 pose YAML / 偏差統計ユーティリティ |
+| [`../sh/launch_localization_for_ndt_measure.sh`](../sh/launch_localization_for_ndt_measure.sh) | （旧方式）bag **再生せず** localization スタックのみ起動 |
+| [`../py/measure_ndt_pose_mean.py`](../py/measure_ndt_pose_mean.py) | （旧方式）Autoware 経路での試行ループ |
 
 既存ツールとの位置づけ:
 
-- [`measure_pose_mean.sh`](../sh/measure_pose_mean.sh): 複数回 **bag 再生**＋EKF pose などの記録後、bag 間で平均
+- [`../sh/measure_pose_mean.sh`](../sh/measure_pose_mean.sh): 複数回 **bag 再生**＋EKF pose などの記録後、bag 間で平均
 - 本ツール: **単一センサーフレーム×固定初期 pose** で NDT 出力のばらつきを評価・平均
 
 ---
@@ -48,7 +51,7 @@ Autoware ワークスペースのルートから（ビルド済み `install` が
 cd /path/to/autoware_ws
 # rosbag と同じディレクトリに ndt_start_pose.yaml を置く
 
-AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/sh/measure_ndt_pose_mean.sh \
+AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/measure_ndt_pose_mean/measure_ndt_pose_mean.sh \
   /path/to/map \
   /path/to/rosbag.db3 \
   1772096549.105
@@ -57,22 +60,15 @@ AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/sh/measure_ndt_pose_mean.sh \
 試行回数を変える例（50 回）:
 
 ```bash
-AUTOWARE_WS=$PWD ./measure_ndt_pose_mean.sh MAP BAG 1772096549.105 50
+AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/measure_ndt_pose_mean/measure_ndt_pose_mean.sh \
+  MAP BAG 1772096549.105 50
 ```
 
-vehicle を sample に固定する例:
+vehicle を sample に固定する例（direct 方式では未使用・互換のため受け取るのみ）:
 
 ```bash
 ./measure_ndt_pose_mean.sh --force-sample-vehicle MAP BAG TARGET
 ```
-
-**既に Autoware を手動で起動している場合**は、起動スクリプトは使わず測定のみ:
-
-```bash
-SKIP_LAUNCH=1 AUTOWARE_WS=$PWD ./measure_ndt_pose_mean.sh MAP BAG TARGET
-```
-
-（`SKIP_LAUNCH=1` 時はスクリプト側で `/clock` を publish します。`/clock` が既に正しい時刻で出ているなら、そのまま試行のみです。）
 
 ---
 
@@ -181,8 +177,7 @@ tier4 の既定では、NDT の `input_initial_pose_topic` は EKF の `/localiz
 cd /path/to/autoware_ws
 # rosbag 同階層に ndt_start_pose.yaml を配置
 
-N_RUNS=1 AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/sh/measure_ndt_pose_mean.sh \
-  --force-sample-vehicle \
+N_RUNS=1 AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/measure_ndt_pose_mean/measure_ndt_pose_mean.sh \
   /path/to/map \
   /path/to/rosbag.db3 \
   1722303384.244407296 \
@@ -218,4 +213,4 @@ EKF_SEED_POSE=0 N_RUNS=1 ... ./measure_ndt_pose_mean.sh MAP BAG TARGET 1
 
 ## 参考: EKF pose 側の複数回放送平均
 
-複数回放送での EKF・点群アライン付き平均は [`measure_pose_mean.sh`](../sh/measure_pose_mean.sh) と [`aggregate_pose_mean_from_bags.py`](../py/aggregate_pose_mean_from_bags.py) を参照してください。
+複数回放送での EKF・点群アライン付き平均は [`../sh/measure_pose_mean.sh`](../sh/measure_pose_mean.sh) と [`aggregate_pose_mean_from_bags.py`](aggregate_pose_mean_from_bags.py) を参照してください。
