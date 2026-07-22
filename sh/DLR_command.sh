@@ -15,7 +15,7 @@ DATASET_ID=$(basename $(dirname "$DATASET_PATH"))
 source $CALL_DIR/install/setup.bash
 
 # Set traps to stop all background processes when the script exits
-trap "$HOME/scripts_for_autoware/sh/kill_autoware.sh" EXIT INT TERM HUP
+trap "$HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh" EXIT INT TERM HUP
 
 if [ "$TIMEOUT_SECONDS" -eq 0 ]; then
   # TIMEOUT_SECONDSが0の場合は最後まで再生する（timeoutコマンドを使用しない）

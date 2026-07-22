@@ -11,21 +11,21 @@
 # use_sim_time をオフにする場合: USE_SIM_TIME=false ./launch_unified_localization.sh <MAP_PATH> <ROSBAG_PATH> ...
 #
 # Requirements (必須・条件付きで参照するファイル。先頭で存在チェックする):
-#   - 常時: $SCRIPT_DIR/vehicle_configs.sh
-#   - 常時: $HOME/scripts_for_autoware/sh/kill_autoware.sh
+#   - 常時: $SCRIPT_DIR/../launch_replay_localization/vehicle_configs.sh
+#   - 常時: $HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh
 #   - 常時: カレントディレクトリが autoware ビルド済みで install/setup.bash が存在すること（引数チェックで検証）
-#   - TOPIC_TYPE 指定時: $SCRIPT_DIR/record_rosbag_localization_replay.sh
+#   - TOPIC_TYPE 指定時: $SCRIPT_DIR/../launch_replay_localization/record_rosbag_localization_replay.sh
 #   - --compare-bag 指定時: $HOME/scripts_for_autoware/py/play_multiple_rosbags.py
 #   - 使用時に存在確認: scripts_for_autoware/py/set_initial_pose.py, gnss_to_initial_pose.py
 #   - unified_localization 起動時: autoware_unified_localization パッケージ（launch 内で検証）
 
 CALL_DIR=$(pwd)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [ ! -f "$SCRIPT_DIR/vehicle_configs.sh" ]; then
-    echo "Error: Required file not found: $SCRIPT_DIR/vehicle_configs.sh" >&2
+if [ ! -f "$SCRIPT_DIR/../launch_replay_localization/vehicle_configs.sh" ]; then
+    echo "Error: Required file not found: $SCRIPT_DIR/../launch_replay_localization/vehicle_configs.sh" >&2
     exit 1
 fi
-source "$SCRIPT_DIR/vehicle_configs.sh"
+source "$SCRIPT_DIR/../launch_replay_localization/vehicle_configs.sh"
 
 # 位置引数の解析
 POSITIONAL_ARGS=()
@@ -86,8 +86,8 @@ fi
 
 # 必須ファイルの存在チェック
 MISSING=()
-[ ! -f "$HOME/scripts_for_autoware/sh/kill_autoware.sh" ] && MISSING+=("$HOME/scripts_for_autoware/sh/kill_autoware.sh")
-[ -n "$TOPIC_TYPE" ] && [ ! -f "$SCRIPT_DIR/record_rosbag_localization_replay.sh" ] && MISSING+=("$SCRIPT_DIR/record_rosbag_localization_replay.sh")
+[ ! -f "$HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh" ] && MISSING+=("$HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh")
+[ -n "$TOPIC_TYPE" ] && [ ! -f "$SCRIPT_DIR/../launch_replay_localization/record_rosbag_localization_replay.sh" ] && MISSING+=("$SCRIPT_DIR/../launch_replay_localization/record_rosbag_localization_replay.sh")
 [ -n "$COMPARE_BAG" ] && [ ! -f "$HOME/scripts_for_autoware/py/play_multiple_rosbags.py" ] && MISSING+=("$HOME/scripts_for_autoware/py/play_multiple_rosbags.py")
 if [ ${#MISSING[@]} -gt 0 ]; then
     echo "Error: Required file(s) not found:" >&2
@@ -200,7 +200,7 @@ echo "POSE_SOURCE: $POSE_SOURCE (unified_localization)" | tee -a $LAUNCH_LOG_FIL
 VEHICLE_CONFIG=$(detect_vehicle_config "$ROSBAG")
 if [ $? -ne 0 ]; then
     echo "Error: Vehicle configuration not found for ROSBAG path: $ROSBAG"
-    echo "Available vehicle ID fragments (edit $SCRIPT_DIR/vehicle_configs.sh to add):"
+    echo "Available vehicle ID fragments (edit $SCRIPT_DIR/../launch_replay_localization/vehicle_configs.sh to add):"
     for config in "${VEHICLE_CONFIGS[@]}"; do
         [[ -z "$config" || "$config" =~ ^[[:space:]]*# ]] && continue
         IFS='|' read -r vehicle_fragment vehicle_model_val vehicle_id_val sensor_model_val <<< "$config"
@@ -225,7 +225,7 @@ echo "  localization:=false, then unified_localization" | tee -a $LAUNCH_LOG_FIL
 echo "  RVIZ: $RVIZ" | tee -a $LAUNCH_LOG_FILE
 echo "  USE_SIM_TIME: $USE_SIM_TIME" | tee -a $LAUNCH_LOG_FILE
 
-trap "$HOME/scripts_for_autoware/sh/kill_autoware.sh" EXIT INT TERM HUP
+trap "$HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh" EXIT INT TERM HUP
 
 ROSBAG_DIR=$(dirname "$ROSBAG")
 OUTPUT_DIR=$ROSBAG_DIR/record_replay_$DATETIME
@@ -315,7 +315,7 @@ sleep 2
 
 if [ -n "$TOPIC_TYPE" ]; then
     echo "Starting rosbag recording (TOPIC_TYPE=$TOPIC_TYPE)..." | tee -a $LAUNCH_LOG_FILE
-    ./record_rosbag_localization_replay.sh $OUTPUT_DIR $TOPIC_TYPE &
+    $SCRIPT_DIR/../launch_replay_localization/record_rosbag_localization_replay.sh $OUTPUT_DIR $TOPIC_TYPE &
 else
     echo "Rosbag recording disabled (TOPIC_TYPE not specified)" | tee -a $LAUNCH_LOG_FILE
 fi

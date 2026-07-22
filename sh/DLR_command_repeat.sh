@@ -4,7 +4,7 @@
 REPEAT_COUNT=$1
 
 # Set traps to stop all background processes when the script exits
-trap "$HOME/scripts_for_autoware/sh/kill_autoware.sh" EXIT INT TERM HUP
+trap "$HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh" EXIT INT TERM HUP
 
 echo "=========================================="
 echo "DLR_command_parallel.shを${REPEAT_COUNT}回実行します"
@@ -23,7 +23,7 @@ for i in $(seq 1 ${REPEAT_COUNT}); do
     # 実行
     $HOME/sh/DLR_command_parallel.sh # 負荷的な制限により引数なしでデフォルト固定
 
-    $HOME/scripts_for_autoware/sh/kill_autoware.sh
+    $HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh
 
     # 次の実行まで少し待機（オプション）
     if [ ${i} -lt ${REPEAT_COUNT} ]; then
