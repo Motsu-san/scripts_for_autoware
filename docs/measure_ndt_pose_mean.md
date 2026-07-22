@@ -1,5 +1,11 @@
 # NDT 固定初期位置・1点群での姿勢平均（`measure_ndt_pose_mean`）
 
+> 現在の `sh/measure_ndt_pose_mean.sh` は、Autoware localization を起動して
+> `/localization/pose_estimator/pose_with_covariance` を待つ旧方式ではなく、
+> `~/autoware/src/tools/localization/ndt_direct_measure` の direct NDT align を
+> `N_RUNS` 回実行し、平均 pose・ばらつき・平均 pose からの最大偏差を出力します。
+> direct 方式の詳細は [`measure_ndt_direct.md`](measure_ndt_direct.md) を参照してください。
+
 `measure_pose_mean.sh` が行う複数回の bag **全再生**では、再生ごとの初期化や pose_initializer の経路の影響で **NDT への入力初期位置がばらつき**、`EKF 出力の平均` を単純に「そのスキャンの NDT 真値」とみなせない場合があります。
 
 本ツールは次を満たすために、**bag 再生なし**で Autoware（localization を中心に）を起動し、**手動で用意した初期位置 YAML** と **指定時刻に最も近い LiDAR 点群の 1 フレーム**を繰り返し投入して、`/localization/pose_estimator/pose_with_covariance`（NDT 側）を **多数回評価し平均**します。
@@ -92,9 +98,44 @@ SKIP_LAUNCH=1 AUTOWARE_WS=$PWD ./measure_ndt_pose_mean.sh MAP BAG TARGET
 5. 各試行で:
    - EKF / NDT の `trigger_node` で **deactivate**
    - `set_initial_pose.py --skip-initial-localization` で **pose_initializer を経由せず** EKF 初期化＋NDT 有効化（既存スクリプトの意図どおり）
-   - 同じ点群を短いバーストで **publish**
+   - map loader へ `ndt_start_pose.yaml` 周辺を問い合わせ、試行時に返るタイル ID・範囲をログと JSON に記録
+   - **EKF を再度 deactivate** して、同じ初期 pose トピック上の EKF 出力が NDT の seed pose バッファを消さないようにする
+   - 同じ点群を短いバーストで **publish**。各 publish の直前に、bag 近傍の車速・角速度から生成した **疑似 EKF pose を 2 点** publish（NDT の補間バッファ用。下記「EKF seed pose」参照）
    - NDT の `pose_with_covariance` を **1 サンプル**取得
 6. 全試行の pose を平均（位置の算術平均、姿勢は四元数平均・既存 `aggregate_pose_mean_from_bags` と同系の統計）。
+
+---
+
+## EKF seed pose（`pose_buffer_.size() < 2` 対策）
+
+NDT scan matcher は `input_initial_pose_topic`（tier4 既定では `/localization/pose_twist_fusion_filter/biased_pose_with_covariance`）を **2 点以上**で補間します。固定 `/clock` と `set_initial_pose` のみだと履歴が 1 点になり、`pose_buffer_.size() < 2` でタイムアウトすることがあります。
+
+本ツールは **評価用の疑似 EKF 履歴**として、次を行います（自然な EKF 出力ではありません。出力 JSON の `ekf_seed` に明記されます）。
+
+1. bag から **target 時刻近傍**の `VelocityReport`（`/vehicle/status/velocity_status`）と、必要なら IMU（`/sensing/imu/tamagawa/imu_raw`）を読む。
+2. `ndt_start_pose.yaml` を **target 時刻の中心姿勢**とみなす。
+3. 角速度は **`VelocityReport.heading_rate` を優先**。該当メッセージが無いときだけ **IMU の `angular_velocity.z`** を使う。
+4. 車体座標の `longitudinal_velocity` / `lateral_velocity` を yaw で map へ投影し、`target ± EKF_SEED_DT_SEC` の 2 点を生成する。
+
+```text
+t0 = target - dt
+T  = target（ndt_start_pose の中心）
+t1 = target + dt
+pose(t0) = ndt_start_pose - twist * dt
+pose(t1) = ndt_start_pose + twist * dt
+```
+
+5. NDT activate 後・点群 publish **前**に、上記 2 点を `NDT_EKF_POSE_TOPIC` へ publish する。
+
+`dt` が小さすぎると補間差分がほぼゼロ、大きすぎると seed の移動量が大きくなります。既定は **0.05 s** です。
+
+### EKF 出力との干渉回避
+
+tier4 の既定では、NDT の `input_initial_pose_topic` は EKF の `/localization/pose_twist_fusion_filter/biased_pose_with_covariance` と同じです。`SmartPoseBuffer` は時刻が逆順の pose を受けるとバッファを clear するため、`target - dt` / `target + dt` の seed を入れた直後に EKF が `target` 付近の pose を出すと、seed が 1 点に潰れて再び `pose_buffer_.size() < 2` になることがあります。
+
+そのため seed 有効時は、既定で **initial pose 適用後に EKF を deactivate** し、NDT の初期 pose バッファを seed pose だけで満たします。この挙動は `EKF_PAUSE_FOR_SEED=0` で無効化できます。
+
+さらに、NDT の subscriber discovery と callback 処理のタイミングで seed が欠けることを避けるため、既定では subscriber を最大 5 秒待ち、seed の 2 点セットを 3 回 publish してから点群を投入します。NDT は補間成功後に古い seed を `pop_old()` するため、点群をバースト publish する場合は **各点群 publish の直前**に seed を入れ直します。最後に publish される順序も `target - dt` → `target + dt` なので、NDT 側の時刻順バッファを保ちます。
 
 ---
 
@@ -115,8 +156,53 @@ SKIP_LAUNCH=1 AUTOWARE_WS=$PWD ./measure_ndt_pose_mean.sh MAP BAG TARGET
 | `TRIAL_TIMEOUT_SEC` | 1 試行あたり NDT pose 待ちのタイムアウト（既定 15） |
 | `SETTLE_SEC` | 初期 pose 設定後の待ち（既定 1） |
 | `CLOUD_PUBLISH_COUNT` / `CLOUD_PUBLISH_HZ` | 点群の publish 回数・レート |
+| `EKF_SEED_POSE` | `1`（既定）で疑似 EKF pose 2 点を投入。`0` で無効 |
+| `EKF_SEED_DT_SEC` | target 前後の時間差 [s]（既定 `0.05`） |
+| `VELOCITY_TOPIC` | bag から読む車速トピック（既定 `/vehicle/status/velocity_status`） |
+| `IMU_TOPIC` | 角速度 fallback 用 IMU（既定 `/sensing/imu/tamagawa/imu_raw`） |
+| `NDT_EKF_POSE_TOPIC` | NDT 初期 pose 入力（既定 `/localization/pose_twist_fusion_filter/biased_pose_with_covariance`） |
+| `EKF_PAUSE_FOR_SEED` | `1`（既定）で seed 投入前に EKF を停止し、NDT バッファへの干渉を防ぐ |
+| `EKF_SEED_PUBLISH_REPEAT` | seed 2 点セットの publish 回数（既定 `3`） |
+| `EKF_SEED_SUBSCRIBER_TIMEOUT_SEC` | seed publish 前に subscriber discovery を待つ秒数（既定 `5.0`） |
+| `EKF_SEED_POST_PUBLISH_WAIT_SEC` | seed publish 後、点群投入までに待つ秒数（既定 `0.3`） |
+| `MAP_TILE_PROBE` | `1`（既定）で試行中に map loader へ問い合わせ、タイル ID をログ・JSON に記録 |
+| `MAP_TILE_PROBE_RADIUS` | `ndt_start_pose` 周辺のタイル問い合わせ半径 [m]（既定 `100.0`） |
+| `MAP_TILE_PROBE_TIMEOUT_SEC` | map tile probe の service 待ち・呼び出し timeout [s]（既定 `10.0`） |
 
 `launch_localization_for_ndt_measure.sh` 側では `CLOCK_HZ`（既定 10）なども利用可能です。
+
+---
+
+## スモークテスト（`N_RUNS=1`）
+
+`pose_buffer_.size() < 2` が解消され、NDT pose が 1 回取れることを確認する手順です。
+
+```bash
+cd /path/to/autoware_ws
+# rosbag 同階層に ndt_start_pose.yaml を配置
+
+N_RUNS=1 AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/sh/measure_ndt_pose_mean.sh \
+  --force-sample-vehicle \
+  /path/to/map \
+  /path/to/rosbag.db3 \
+  1722303384.244407296 \
+  1
+```
+
+確認ポイント:
+
+- launch ログに **`pose_buffer_.size() < 2` が出ない**こと
+- 測定ログに `Deactivating EKF before publishing NDT seed poses` が出ること
+- 測定ログに `Map tile probe after_initial_pose: ... tile(s)` が出ること
+- 測定ログに `Found ... subscriber(s)` と `Publishing 2 EKF seed pose(s) ... (3 set(s))` が出ること
+- 出力 JSON の `status` が `ok` で、`per_run` に 1 件、`/localization/pose_estimator/pose_with_covariance` 相当の pose が記録されること
+- `ekf_seed` に使用した速度・角速度ソース・`seed_stamp_sec` が入り、`map_tile_probe` に `cell_ids` と `bbox` が入っていること
+
+seed を切って旧挙動と比較する場合:
+
+```bash
+EKF_SEED_POSE=0 N_RUNS=1 ... ./measure_ndt_pose_mean.sh MAP BAG TARGET 1
+```
 
 ---
 
