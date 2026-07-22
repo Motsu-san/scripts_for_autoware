@@ -15,8 +15,8 @@
 #   - 常時: $HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh
 #   - 常時: カレントディレクトリが autoware ビルド済みで install/setup.bash が存在すること（引数チェックで検証）
 #   - TOPIC_TYPE 指定時: $SCRIPT_DIR/../launch_replay_localization/record_rosbag_localization_replay.sh
-#   - --compare-bag 指定時: $HOME/scripts_for_autoware/py/play_multiple_rosbags.py
-#   - 使用時に存在確認: scripts_for_autoware/py/set_initial_pose.py, gnss_to_initial_pose.py
+#   - --compare-bag 指定時: $HOME/scripts_for_autoware/launch_replay_localization/py/play_multiple_rosbags.py
+#   - 使用時に存在確認: scripts_for_autoware/launch_replay_localization/py/set_initial_pose.py, gnss_to_initial_pose.py
 #   - unified_localization 起動時: autoware_unified_localization パッケージ（launch 内で検証）
 
 CALL_DIR=$(pwd)
@@ -88,7 +88,7 @@ fi
 MISSING=()
 [ ! -f "$HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh" ] && MISSING+=("$HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh")
 [ -n "$TOPIC_TYPE" ] && [ ! -f "$SCRIPT_DIR/../launch_replay_localization/record_rosbag_localization_replay.sh" ] && MISSING+=("$SCRIPT_DIR/../launch_replay_localization/record_rosbag_localization_replay.sh")
-[ -n "$COMPARE_BAG" ] && [ ! -f "$HOME/scripts_for_autoware/py/play_multiple_rosbags.py" ] && MISSING+=("$HOME/scripts_for_autoware/py/play_multiple_rosbags.py")
+[ -n "$COMPARE_BAG" ] && [ ! -f "$HOME/scripts_for_autoware/launch_replay_localization/py/play_multiple_rosbags.py" ] && MISSING+=("$HOME/scripts_for_autoware/launch_replay_localization/py/play_multiple_rosbags.py")
 if [ ${#MISSING[@]} -gt 0 ]; then
     echo "Error: Required file(s) not found:" >&2
     printf '  %s\n' "${MISSING[@]}" >&2
@@ -323,7 +323,7 @@ fi
 echo "Starting rosbag playback..." | tee -a $LAUNCH_LOG_FILE
 
 if [ -n "$COMPARE_BAG" ]; then
-    PLAY_MULTIPLE_SCRIPT="$HOME/scripts_for_autoware/py/play_multiple_rosbags.py"
+    PLAY_MULTIPLE_SCRIPT="$HOME/scripts_for_autoware/launch_replay_localization/py/play_multiple_rosbags.py"
     if [ ! -f "$PLAY_MULTIPLE_SCRIPT" ]; then
         echo "Error: play_multiple_rosbags.py not found at $PLAY_MULTIPLE_SCRIPT" | tee -a $LAUNCH_LOG_FILE
         echo "Falling back to single rosbag playback..." | tee -a $LAUNCH_LOG_FILE
@@ -366,7 +366,7 @@ echo "DEBUG: Checking for initial_pose.yaml at: $INITIAL_POSE_YAML" | tee -a $LA
 
 if [ -f "$INITIAL_POSE_YAML" ]; then
     echo "Setting initial pose from $INITIAL_POSE_YAML..." | tee -a $LAUNCH_LOG_FILE
-    python3 $(dirname $0)/../py/set_initial_pose.py "$INITIAL_POSE_YAML" 2>&1 | tee -a $LAUNCH_LOG_FILE
+    python3 $(dirname $0)/../launch_replay_localization/py/set_initial_pose.py "$INITIAL_POSE_YAML" 2>&1 | tee -a $LAUNCH_LOG_FILE
     POSE_SET_RESULT=${PIPESTATUS[0]}
     if [ $POSE_SET_RESULT -eq 0 ]; then
         echo "Initial pose set successfully" | tee -a $LAUNCH_LOG_FILE
@@ -377,7 +377,7 @@ if [ -f "$INITIAL_POSE_YAML" ]; then
 else
     echo "Info: initial_pose.yaml not found at $INITIAL_POSE_YAML" | tee -a $LAUNCH_LOG_FILE
     echo "Unified localization: setting initial pose from GNSS (/sensing/gnss/pose_with_covariance)..." | tee -a $LAUNCH_LOG_FILE
-    GNSS_POSE_SCRIPT="$(dirname $0)/../py/gnss_to_initial_pose.py"
+    GNSS_POSE_SCRIPT="$(dirname $0)/../launch_replay_localization/py/gnss_to_initial_pose.py"
     if [ -f "$GNSS_POSE_SCRIPT" ]; then
         python3 "$GNSS_POSE_SCRIPT" --timeout 45 2>&1 | tee -a $LAUNCH_LOG_FILE
         GNSS_RESULT=${PIPESTATUS[0]}
