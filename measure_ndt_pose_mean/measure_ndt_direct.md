@@ -21,7 +21,7 @@ rosbag の再記録は不要です（既存 bag + 既存 `ndt_start_pose.yaml` +
 | 項目 | `measure_ndt_direct` | `measure_ndt_pose_mean` |
 |------|----------------------|-------------------------|
 | 役割 | raw align 実行 | N 回実行 + 平均・ばらつき集計 |
-| 既定 `N_RUNS` | 1 | 100 |
+| 既定 `N_RUNS` | 1 | 3 |
 | 出力 | raw JSON/CSV | raw + 集計 JSON + `mean_ndt_pose.yaml` |
 | 実装 | 本スクリプトが node を直接起動 | 本スクリプトを呼び、続けて集計 |
 

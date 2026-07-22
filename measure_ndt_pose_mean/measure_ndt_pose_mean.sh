@@ -7,9 +7,10 @@
 #
 # Usage:
 #   cd <autoware_ws>
-#   AUTOWARE_WS=$PWD ./measure_ndt_pose_mean.sh [options] <MAP_PATH> <SOURCE_ROSBAG> <TARGET_UNIX_SEC> [N_RUNS]
+#   AUTOWARE_WS=$PWD ./measure_ndt_pose_mean.sh [options] <MAP_PATH> <SOURCE_ROSBAG> [TARGET_UNIX_SEC]
 #
 # Options:
+#   -n, --n-runs <N>        実行回数（既定: 3）
 #   --force-sample-vehicle  互換用に受け取るが direct 方式では未使用
 #   -h, --help
 #
@@ -37,14 +38,29 @@ AGG_PY="$SCRIPT_DIR/aggregate_ndt_direct_result.py"
 AUTOWARE_WS="${AUTOWARE_WS:-$(pwd)}"
 
 usage() {
-    echo "Usage: AUTOWARE_WS=<ws> $0 [options] <MAP_PATH> <SOURCE_ROSBAG> <TARGET_UNIX_SEC> [N_RUNS]" >&2
-    echo "  N_RUNS 既定: 100" >&2
+    echo "Usage: AUTOWARE_WS=<ws> $0 [options] <MAP_PATH> <SOURCE_ROSBAG> [TARGET_UNIX_SEC]" >&2
+    echo "  TARGET_UNIX_SEC 省略時: ndt_start_pose.yaml の header.stamp を使用" >&2
+    echo "  -n, --n-runs <N>  実行回数（既定: 3）" >&2
     echo "  ndt_start_pose.yaml: rosbag と同じ階層（NDT_START_POSE_YAML で上書き可）" >&2
 }
 
+N_RUNS=3
 POSITIONAL=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        -n|--n-runs)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: $1 には値が必要です" >&2
+                usage
+                exit 1
+            fi
+            N_RUNS="$2"
+            shift 2
+            ;;
+        --n-runs=*)
+            N_RUNS="${1#*=}"
+            shift
+            ;;
         --force-sample-vehicle)
             echo "Info: --force-sample-vehicle は direct 方式では未使用です" >&2
             shift
@@ -66,15 +82,14 @@ while [[ $# -gt 0 ]]; do
 done
 set -- "${POSITIONAL[@]}"
 
-if [[ $# -lt 3 ]]; then
+if [[ $# -lt 2 ]]; then
     usage
     exit 1
 fi
 
 MAP_PATH="$1"
 SOURCE_ROSBAG="$2"
-TARGET_UNIX_SEC="$3"
-N_RUNS="${4:-100}"
+TARGET_UNIX_SEC="${3:-}"
 
 if [[ ! -f "$DIRECT_SH" ]]; then
     echo "Error: $DIRECT_SH not found" >&2
@@ -98,6 +113,20 @@ NDT_START_POSE_YAML="${NDT_START_POSE_YAML:-$ROSBAG_DIR/ndt_start_pose.yaml}"
 if [[ ! -f "$NDT_START_POSE_YAML" ]]; then
     echo "Error: ndt_start_pose.yaml がありません: $NDT_START_POSE_YAML" >&2
     exit 1
+fi
+
+# TARGET_UNIX_SEC 未指定なら ndt_start_pose.yaml の header.stamp から取得
+if [[ -z "$TARGET_UNIX_SEC" ]]; then
+    TARGET_UNIX_SEC="$(awk '
+        /^[[:space:]]*nanosec:/ { gsub(/[^0-9]/, ""); nsec=$0; next }
+        /^[[:space:]]*sec:/     { gsub(/[^0-9]/, ""); sec=$0 }
+        END { if (sec != "") printf "%s.%09d\n", sec, nsec+0 }
+    ' "$NDT_START_POSE_YAML")"
+    if [[ -z "$TARGET_UNIX_SEC" ]]; then
+        echo "Error: TARGET_UNIX_SEC 未指定で ndt_start_pose.yaml に header.stamp もありません: $NDT_START_POSE_YAML" >&2
+        exit 1
+    fi
+    echo "Info: TARGET_UNIX_SEC を ndt_start_pose.yaml の header.stamp から取得: $TARGET_UNIX_SEC" >&2
 fi
 
 TARGET_TAG="${TARGET_UNIX_SEC//./_}"

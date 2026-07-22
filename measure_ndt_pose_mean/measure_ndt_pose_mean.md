@@ -37,7 +37,8 @@ pose_initializer の経路の影響で **NDT への入力初期位置がばら�
 
 | 項目 | 既定・推奨 |
 |------|-----------|
-| **試行回数** | **100**（第 4 引数で変更可） |
+| **試行回数** | **3**（`-n` / `--n-runs` で変更可） |
+| **TARGET_UNIX_SEC** | 第 3 引数。省略時は `ndt_start_pose.yaml` の `header.stamp`（`sec.nanosec`）を使用 |
 | **ndt_start_pose.yaml** | **ソース rosbag と同じディレクトリ**<br>例: `.../final_merged/final_merged_0.db3` と同じ階層の `ndt_start_pose.yaml`<br>（ディレクトリ形式の bag はそのディレクトリ直下）<br>bag 再生用の `initial_pose.yaml` とは別ファイル |
 | **点群トピック** | `/sensing/lidar/concatenated/pointcloud`（環境変数で変更可） |
 
@@ -57,11 +58,20 @@ AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/measure_ndt_pose_mean/measure_ndt
   1772096549.105
 ```
 
+`TARGET_UNIX_SEC`（第 3 引数）は省略可能。省略時は `ndt_start_pose.yaml` の
+`header.stamp` を使います:
+
+```bash
+AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/measure_ndt_pose_mean/measure_ndt_pose_mean.sh \
+  /path/to/map \
+  /path/to/rosbag.db3
+```
+
 試行回数を変える例（50 回）:
 
 ```bash
 AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/measure_ndt_pose_mean/measure_ndt_pose_mean.sh \
-  MAP BAG 1772096549.105 50
+  -n 50 MAP BAG 1772096549.105
 ```
 
 ---
@@ -109,17 +119,17 @@ AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/measure_ndt_pose_mean/measure_ndt
 
 ---
 
-## スモークテスト（`N_RUNS=1`）
+## スモークテスト（`-n 1`）
 
 ```bash
 cd /path/to/autoware_ws
 # rosbag 同階層に ndt_start_pose.yaml を配置
 
-N_RUNS=1 AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/measure_ndt_pose_mean/measure_ndt_pose_mean.sh \
+AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/measure_ndt_pose_mean/measure_ndt_pose_mean.sh \
+  -n 1 \
   /path/to/map \
   /path/to/rosbag.db3 \
-  1722303384.244407296 \
-  1
+  1722303384.244407296
 ```
 
 確認ポイント:
