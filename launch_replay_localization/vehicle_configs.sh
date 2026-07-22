@@ -11,23 +11,6 @@ declare -a VEHICLE_CONFIGS=(
     # vehicle_id: Vehicle ID (must match vehicle_fragment)
     # sensor_model: Sensor model (must match vehicle_fragment)
     "sample|sample_vehicle|default|sample_sensor_kit" # Autoware sample vehicle
-    "0803cd66|lexus|default|aip_xx1"
-    "162bd623|sample_vehicle|default|sample_sensor_kit"
-    "2721c269|j6_gen1|j6_gen1_dev|aip_x2"
-    "0c50398a|j6_gen1|j6_gen1_dev|aip_x2"
-    "3905ebe7|cargo_transport|default|sample_sensor_kit"
-    "5c684cbc|robobus|robobus_01|robobus_sensor_kit"
-    "694a217d|cargo_transport|default|aip_x1"
-    "948d4e44|medium_bus|default|aip_xx1"
-    "b3902d62|j6_gen2|j6_gen2_12|aip_x2_gen2"
-    "0388f3fc|j6_gen1|j6_gen1_02|aip_x2"
-    "cfa23601|j6_gen2|j6_gen2_03|aip_x2_gen2"
-    "aca0a78e|j6_gen2|j6_gen2_32|aip_x2_gen2"
-    "01d060d9|jpntaxi|7|aip_xx1" # old jpntaxi 7 "default" may be appropriate
-    "1d8fb5b8|jpntaxi|4|aip_xx1" # old jpntaxi 4 "default" may be appropriate
-    "0ed0b1e4|jpntaxi|1|aip_xx1"
-    "fc54b2c0|jpntaxi|4|aip_xx1"
-    "bd44d34d|jpntaxi|7|aip_xx1"
 )
 
 detect_vehicle_config() {
