@@ -16,16 +16,14 @@ rosbag の再記録は不要です（既存 bag + 既存 `ndt_start_pose.yaml` +
 
 ---
 
-## 従来方式との違い
+## `measure_ndt_pose_mean` との違い
 
-| 項目 | `measure_ndt_pose_mean` | `measure_ndt_direct` |
-|------|-------------------------|----------------------|
-| NDT の呼び方 | ノードへ点群/seed を publish | ライブラリを直接 `align()` |
-| Autoware 起動 | 必要 | 不要 |
-| 初期 pose | EKF seed + `set_initial_pose` | `ndt_start_pose.yaml` をそのまま使用 |
-| 地図 | map loader サービス（動的） | PCD を直接読み込み |
-| 収束結果 | `pose_with_covariance` の有無で間接判定 | `score_nvtl` / `score_tp` と閾値比較を JSON/CSV に出力 |
-| 再現性 | TF / SmartPoseBuffer / activation に依存 | アルゴリズム層の切り分け向き |
+| 項目 | `measure_ndt_direct` | `measure_ndt_pose_mean` |
+|------|----------------------|-------------------------|
+| 役割 | raw align 実行 | N 回実行 + 平均・ばらつき集計 |
+| 既定 `N_RUNS` | 1 | 100 |
+| 出力 | raw JSON/CSV | raw + 集計 JSON + `mean_ndt_pose.yaml` |
+| 実装 | 本スクリプトが node を直接起動 | 本スクリプトを呼び、続けて集計 |
 
 **注意:** direct 方式は車載パイプライン（crop_box、dynamic map、EKF 予測初期値）を通しません。NDT アルゴリズムの挙動確認・切り分け用です。
 
@@ -102,8 +100,8 @@ JSON / CSV の各 run に次が含まれます。
 ## 検証の目安
 
 1. `passes_score_threshold: true` かつ `has_converged: true` → NDT ライブラリとしては良好
-2. direct は成功するが `measure_ndt_pose_mean` がタイムアウト → ROS ランタイム経路の問題を疑う
-3. 両方失敗 → 初期 pose / 点群 frame / map 範囲 / param を確認
+2. 失敗する場合 → 初期 pose / 点群 frame / map 範囲 / param を確認
+3. 平均・ばらつきまで欲しい場合は [`measure_ndt_pose_mean.sh`](measure_ndt_pose_mean.sh) を使う
 
 ---
 
