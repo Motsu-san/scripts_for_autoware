@@ -24,6 +24,9 @@
 # 環境変数:
 #   AUTOWARE_WS          既定: 実行時の pwd
 #   PLAYBACK_RATE        既定: 1.0
+#   STOP_MARGIN_SEC      各 run の再生を TARGET + この秒数 で打ち切る（launch の -T/--end-time に渡す）。既定: 1.0。
+#                        空にすると -T を付けず bag の最後まで再生（従来動作）。停止は /clock 監視のため end_t 以降に片側でばらつくが、
+#                        TARGET 近傍の pose 選択には影響しない。use_sim_time=true かつ bag に /clock がある前提。
 #   GT_POSE_TOPIC        aggregate_pose_mean_from_bags.py の --pose-topic（既定: NDT pose_with_covariance）
 #   MEAN_POSE_YAML       出力 YAML パス（省略時は出力ディレクトリ内 mean_pose.yaml）
 #   MEAN_POSE_OUTPUT_DIR 集計結果のディレクトリ（省略時は STATE_FILE_DIR/mean_pose_YYYYMMDD_hhmmss を新規作成）
@@ -164,7 +167,7 @@ usage() {
     echo "  --skip-compare      集計後の compare_mean_pose.sh による位置比較を行わない" >&2
     echo "環境変数: PLAYBACK_RATE GT_POSE_TOPIC MEAN_POSE_YAML MEAN_POSE_OUTPUT_DIR INITIAL_POSE_YAML GT_AGG_JSON EXTRA_LAUNCH_ARGS" >&2
     echo "  SKIP_LAUNCH=1 BAGS_LIST_FILE  MEASURE_RESUME=1  ALIGN_POINTCLOUD_TOPIC  MAX_POSE_POINTCLOUD_DT_SEC" >&2
-    echo "  NDT_MEAN_POSE_YAML  SKIP_COMPARE=1  COMPARE_YAML_OUT  COMPARE_JSON_OUT" >&2
+    echo "  NDT_MEAN_POSE_YAML  SKIP_COMPARE=1  COMPARE_YAML_OUT  COMPARE_JSON_OUT  STOP_MARGIN_SEC（既定1.0）" >&2
 }
 
 POSITIONAL=()
@@ -323,6 +326,16 @@ STATE_FILE="$STATE_FILE_DIR/.measure_pose_mean_t${TARGET_TAG}_n${N_RUNS}.txt"
 
 INITIAL_POSE_YAML="${INITIAL_POSE_YAML:-$STATE_DIR/initial_pose.yaml}"
 
+# 各 run の再生を TARGET + STOP_MARGIN_SEC で打ち切る（launch_autoware.sh の -T/--end-time に渡す）。
+# 停止は /clock 監視での kill のため end_t 以降に片側でばらつくが、TARGET 近傍の pose 選択には影響しない。
+# STOP_MARGIN_SEC を空にすると -T を付けず bag の最後まで再生する（従来動作）。
+# end_t は停止判定用のため ms 精度で十分（TARGET のナノ秒精度は集計側の pose 選択でのみ使う）。
+STOP_MARGIN_SEC="${STOP_MARGIN_SEC-1.0}"
+PLAY_END_UNIX_SEC=""
+if [[ -n "$STOP_MARGIN_SEC" ]]; then
+    PLAY_END_UNIX_SEC="$(awk -v t="$TARGET_UNIX_SEC" -v m="$STOP_MARGIN_SEC" 'BEGIN{printf "%.3f", t + m}')"
+fi
+
 # 集計後の位置比較（compare_mean_pose.sh）の基準 mean_ndt_pose.yaml を解決する。
 # NDT_MEAN_POSE_YAML（--compare-ref）を明示指定 → 無ければ即エラー（長い再生の前に失敗させる）。
 # 未指定 → STATE_DIR/mean_ndt_pose_direct_<TARGET_TAG>_*/mean_ndt_pose.yaml の最新を自動検出。
@@ -356,6 +369,11 @@ echo "Info: 新規記録の探索ディレクトリ: $RECORD_SCAN_DIR" >&2
 echo "Info: 状態ファイル: $STATE_FILE" >&2
 echo "Info: 既定 initial_pose / 集計ベースディレクトリ (STATE_DIR): $STATE_DIR" >&2
 echo "Info: bag 推定 --gnss-receiver: $GNSS_RECEIVER_DETECTED" >&2
+if [[ -n "$PLAY_END_UNIX_SEC" ]]; then
+    echo "Info: 各 run の再生を -T $PLAY_END_UNIX_SEC で打ち切ります（TARGET + STOP_MARGIN_SEC=$STOP_MARGIN_SEC）" >&2
+else
+    echo "Info: STOP_MARGIN_SEC が空のため再生は bag の最後まで（-T なし）" >&2
+fi
 if [[ "$FORCE_SAMPLE_VEHICLE" == "1" ]]; then
     echo "Info: launch に --force-sample-vehicle を付与します" >&2
 fi
@@ -370,6 +388,9 @@ invoke_launch_autoware_for_measure() {
     local _args=( "$MAP_PATH" "$SOURCE_ROSBAG" 0 false output_pose_mean --rate "$PLAYBACK_RATE" --gnss-receiver "$GNSS_RECEIVER_DETECTED" )
     if [[ "$FORCE_SAMPLE_VEHICLE" == "1" ]]; then
         _args+=( --force-sample-vehicle )
+    fi
+    if [[ -n "$PLAY_END_UNIX_SEC" ]]; then
+        _args+=( -T "$PLAY_END_UNIX_SEC" )
     fi
     # shellcheck disable=SC2086
     PLAYBACK_RATE="$PLAYBACK_RATE" bash "$LAUNCH_SCRIPT" "${_args[@]}" ${EXTRA_LAUNCH_ARGS:-}
