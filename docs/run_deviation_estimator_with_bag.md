@@ -52,8 +52,8 @@ pose は NDT などの localization 結果を基準値として使います。ND
 
 | 表記 | 意味 |
 |------|------|
-| `[AUTOWARE_WS]` | Autoware の colcon ワークスペースルート（`install/local_setup.bash` があるディレクトリ） |
-| `[SCRIPTS_FOR_AUTOWARE]` | 本リポジトリ（`scripts_for_autoware`）のルート |
+| `[AUTOWARE_WS]` | Autoware の colcon ワークスペースルート(`install/local_setup.bash` があるディレクトリ) |
+| `[SCRIPTS_FOR_AUTOWARE]` | 本リポジトリ(`scripts_for_autoware`)のルート |
 
 ---
 

@@ -25,6 +25,6 @@ python3 tools/convert_pointcloud_type.py my_old_bag my_new_bag /sensing/lidar/fr
 - 変換後のrosbagをAutoware Universeでリプレイしてください
 
 ## 注意
-- 入力rosbagはrosbag2形式（sqlite3）である必要があります
+- 入力rosbagはrosbag2形式(sqlite3)である必要があります
 - 変換後のトピック名・タイムスタンプは元のままです
 - 必要に応じてAutoware Universeのlaunchファイルで新しいrosbagを参照してください

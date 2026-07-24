@@ -4,9 +4,9 @@ mean_ndt_pose.yaml を真値基準に、オドメトリのみ走行 rosbag か�
 initial_pose 時刻 → target_unix_sec 区間の走行距離・位置差分・ヨー差を算出し、
 speed_scale_factor と yaw_rate バイアスの修正値を推定する。
 
-補正方針（曲線走行でも過補正しにくい）:
-  - speed_scale: 終点の NDT 車体座標 縦位置誤差 / 走行距離（クリップなし）
-  - yaw_rate offset: 開始点方位角差 / 区間時間（start_bearing_geometry のみ）
+補正方針(曲線走行でも過補正しにくい):
+  - speed_scale: 終点の NDT 車体座標 縦位置誤差 / 走行距離(クリップなし)
+  - yaw_rate offset: 開始点方位角差 / 区間時間(start_bearing_geometry のみ)
     endpoint_yaw は診断表示のみ。auto も geometry と同じ。
   wheel 積分・heading_rate 積分は診断のみ。
 """
@@ -510,7 +510,7 @@ def scan_kinematic_longitudinal_velocity_series(
     t_start: float,
     t_end: float,
 ) -> List[Tuple[float, float]]:
-    """kinematic_state (Odometry) の twist.linear.x 系列（velocity 欠落時のフォールバック）。"""
+    """kinematic_state (Odometry) の twist.linear.x 系列(velocity 欠落時のフォールバック)。"""
     from nav_msgs.msg import Odometry
 
     storage_options = StorageOptions(uri=bag_dir, storage_id="sqlite3")
@@ -626,7 +626,7 @@ def body_frame_deviation(
     meas_pos: np.ndarray,
     meas_quat: np.ndarray,
 ) -> Dict[str, float]:
-    """ref 姿勢の車体座標系での縦・横・ヨー差（compare_mean_pose と同様）。"""
+    """ref 姿勢の車体座標系での縦・横・ヨー差(compare_mean_pose と同様)。"""
     r_ref = R.from_quat(ref_quat)
     yaw_ref = yaw_from_quat_xyzw(ref_quat)
     d_map = meas_pos - ref_pos
@@ -687,7 +687,7 @@ def resolve_start_unix_sec(
             file=sys.stderr,
         )
         return float(pose_series[0][0]), "first_pose_in_bag"
-    raise ValueError("開始時刻を決定できません（--start-unix-sec または initial_pose の stamp を指定してください）")
+    raise ValueError("開始時刻を決定できません(--start-unix-sec または initial_pose の stamp を指定してください)")
 
 
 def default_yaml_out_path(mean_ndt_pose_yaml: Path, odom_bag: Path) -> Path:
@@ -981,7 +981,7 @@ def calibrate(
     travel_denom = max(d_path, d_net, 1.0)
     curvature_ratio = float(d_excess / travel_denom) if travel_denom > 1e-9 else 0.0
 
-    # 終点の NDT 車体座標誤差から補正（クリップなし）
+    # 終点の NDT 車体座標誤差から補正(クリップなし)
     # 縦 + → odom が進みすぎ → scale を下げる
     scale_multiplier = 1.0 - lon_err / travel_denom
 
@@ -1215,19 +1215,19 @@ def main() -> int:
         "--initial-pose-yaml",
         type=Path,
         required=True,
-        help="積分始点の initial_pose.yaml（または ndt_start_pose.yaml）",
+        help="積分始点の initial_pose.yaml(または ndt_start_pose.yaml)",
     )
     ap.add_argument(
         "--start-unix-sec",
         type=float,
         default=None,
-        help="積分開始 UNIX 時刻（省略時は initial_pose YAML または bag 先頭 pose）",
+        help="積分開始 UNIX 時刻(省略時は initial_pose YAML または bag 先頭 pose)",
     )
     ap.add_argument(
         "--target-unix-sec",
         type=float,
         default=None,
-        help="積分終了 UNIX 時刻（省略時は mean_ndt_pose.yaml の aggregated.target_unix_sec）",
+        help="積分終了 UNIX 時刻(省略時は mean_ndt_pose.yaml の aggregated.target_unix_sec)",
     )
     ap.add_argument("--pose-topic", default=DEFAULT_POSE_TOPIC)
     ap.add_argument("--velocity-topic", default=DEFAULT_VELOCITY_TOPIC)
@@ -1236,12 +1236,12 @@ def main() -> int:
         "--wheel-rosbag",
         type=Path,
         default=None,
-        help="車速・角速度を読む bag（省略時は odom_rosbag。記録 bag に velocity が無い場合に元 bag を指定）",
+        help="車速・角速度を読む bag(省略時は odom_rosbag。記録 bag に velocity が無い場合に元 bag を指定)",
     )
     ap.add_argument(
         "--kinematic-topic",
         default="/localization/pose_twist_fusion_filter/kinematic_state",
-        help="velocity_status 欠落時のフォールバック（twist.linear.x / angular.z）",
+        help="velocity_status 欠落時のフォールバック(twist.linear.x / angular.z)",
     )
     ap.add_argument(
         "--vehicle-velocity-param-yaml",
@@ -1262,7 +1262,7 @@ def main() -> int:
         help=(
             "individual_params リポジトリ/パッケージのルート。"
             " rosbag パスから vehicle を推定し param YAML を自動解決"
-            "（--vehicle-velocity-param-yaml / --imu-corrector-param-yaml 未指定時）"
+            "(--vehicle-velocity-param-yaml / --imu-corrector-param-yaml 未指定時)"
         ),
     )
     ap.add_argument(
@@ -1282,7 +1282,7 @@ def main() -> int:
         choices=YAW_BIAS_METHODS,
         default=DEFAULT_YAW_BIAS_METHOD,
         help=(
-            "yaw_rate バイアス推定: 既定 start_bearing_geometry（開始点方位角差）。"
+            "yaw_rate バイアス推定: 既定 start_bearing_geometry(開始点方位角差)。"
             " endpoint_yaw は診断用。auto は geometry と同じ"
         ),
     )
@@ -1308,7 +1308,7 @@ def main() -> int:
         "--convergence-yaw-threshold-deg",
         type=float,
         default=None,
-        help="ヨー誤差の監視閾値 [deg]（収束判定には含めない）",
+        help="ヨー誤差の監視閾値 [deg](収束判定には含めない)",
     )
     ap.add_argument(
         "--check-convergence",
@@ -1332,7 +1332,7 @@ def main() -> int:
         t_ref = target_unix_sec_from_ndt_meta(ndt_meta)
     if t_ref is None:
         print(
-            "Error: target_unix_sec を決定できません（--target-unix-sec または YAML の aggregated.target_unix_sec）",
+            "Error: target_unix_sec を決定できません(--target-unix-sec または YAML の aggregated.target_unix_sec)",
             file=sys.stderr,
         )
         return 2

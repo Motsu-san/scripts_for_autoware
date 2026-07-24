@@ -2,7 +2,7 @@
 # mean_ndt_pose.yaml を基準に、オドメトリのみ走行 rosbag から
 # speed_scale_factor / yaw_rate バイアス補正を推定する。
 #
-# 事前に Autoware WS を source することを推奨（velocity_status デシリアライズ用）:
+# 事前に Autoware WS を source することを推奨(velocity_status デシリアライズ用):
 #   source /opt/ros/humble/setup.bash
 #   source ~/autoware/install/setup.bash
 #   --individual-params-root ~/pilot-auto.../src/autoware/individual_params

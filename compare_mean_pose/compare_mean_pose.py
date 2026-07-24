@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-ndt_mean_pose.yaml（NDT 平均姿勢）を基準に、mean_pose 集計 JSON の各 run 測定 pose との
-縦（前後）・横（左右）・ヨー差を求め、平均・ばらつき（標準偏差）・最大絶対偏差を YAML に出力する。
+ndt_mean_pose.yaml(NDT 平均姿勢)を基準に、mean_pose 集計 JSON の各 run 測定 pose との
+縦(前後)・横(左右)・ヨー差を求め、平均・ばらつき(標準偏差)・最大絶対偏差を YAML に出力する。
 
 per_scan_summary に前後スキャンの参照 pose がある場合、各 run の測定 pose の pose_header_stamp_sec に
-最も近い参照 pose を基準に差分を計算する（指定時刻のルート pose のみを使わない）。
+最も近い参照 pose を基準に差分を計算する(指定時刻のルート pose のみを使わない)。
 
-dt_pose_from_pointcloud_header_sec が --max-pose-pointcloud-dt-sec（既定 0.21）を超える run は
-平均・標準偏差・合格率などの集計から除外する（measure_pose_mean の MAX_POSE_POINTCLOUD_DT_SEC と同義）。
+dt_pose_from_pointcloud_header_sec が --max-pose-pointcloud-dt-sec(既定 0.21)を超える run は
+平均・標準偏差・合格率などの集計から除外する(measure_pose_mean の MAX_POSE_POINTCLOUD_DT_SEC と同義)。
 
-基準の車体座標系: x=前進、y=左（各参照 pose の姿勢で定義）
+基準の車体座標系: x=前進、y=左(各参照 pose の姿勢で定義)
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ def longitudinal_pass_stats(
             "success_rate_percent": float(success_rate * 100.0),
         }
     return {
-        "description": "縦（前後）誤差の絶対値が閾値以下で合格",
+        "description": "縦(前後)誤差の絶対値が閾値以下で合格",
         "thresholds_m": list(thresholds_m),
         "by_threshold_m": by_threshold,
     }
@@ -94,14 +94,14 @@ def load_ndt_scan_reference_poses(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def run_pose_header_stamp_sec(run: Dict[str, Any]) -> float | None:
-    """比較に使う run 側のヘッダ時刻（測定 pose の pose_header_stamp_sec）。"""
+    """比較に使う run 側のヘッダ時刻(測定 pose の pose_header_stamp_sec)。"""
     if "pose_header_stamp_sec" in run:
         return float(run["pose_header_stamp_sec"])
     return None
 
 
 def run_pose_pointcloud_dt_sec(run: Dict[str, Any]) -> float | None:
-    """pose と点群 header の時刻差（aggregate_pose_mean_from_bags と同じ指標）。"""
+    """pose と点群 header の時刻差(aggregate_pose_mean_from_bags と同じ指標)。"""
     if "dt_pose_from_pointcloud_header_sec" in run:
         return float(run["dt_pose_from_pointcloud_header_sec"])
     if "dt_from_target_sec" in run:
@@ -159,7 +159,7 @@ def pick_nearest_scan_reference(
 
 
 def load_ndt_mean_pose_block(path: Path) -> Tuple[np.ndarray, np.ndarray, Dict[str, Any]]:
-    """mean_pose.yaml 形式（ルート pose）または ndt_mean_pose キーから基準 pose を読む。"""
+    """mean_pose.yaml 形式(ルート pose)または ndt_mean_pose キーから基準 pose を読む。"""
     with path.open("r", encoding="utf-8") as f:
         doc = yaml.safe_load(f)
     if doc is None:
@@ -177,7 +177,7 @@ def load_ndt_mean_pose_block(path: Path) -> Tuple[np.ndarray, np.ndarray, Dict[s
         pp = pblock["pose"]
     else:
         raise ValueError(
-            f"{path}: ルートに pose または ndt_mean_pose がありません（ndt mean_pose.yaml 想定）"
+            f"{path}: ルートに pose または ndt_mean_pose がありません(ndt mean_pose.yaml 想定)"
         )
     pos_v, quat = pose_dict_to_arrays(pp)
     meta = {
@@ -197,7 +197,7 @@ def load_mean_pose_per_run(path: Path) -> Tuple[List[Dict[str, Any]], Dict[str, 
         raise ValueError(f"{path}: 空の JSON です")
     per_run = doc.get("per_run")
     if not per_run:
-        raise ValueError(f"{path}: per_run がありません（mean_pose 集計 JSON 想定）")
+        raise ValueError(f"{path}: per_run がありません(mean_pose 集計 JSON 想定)")
     rows: List[Dict[str, Any]] = []
     for i, run in enumerate(per_run):
         if "position" not in run or "orientation" not in run:
@@ -335,12 +335,12 @@ def deviation_about_ndt_mean_pose(
         description = (
             "ndt_mean_pose.yaml の aggregated.per_scan_summary にある参照 pose を基準。"
             "各 run は測定 pose の pose_header_stamp_sec に最も近い参照 pose を選び、"
-            "その車体軸（x=前進,y=左）で縦・横・ヨー誤差を計算。"
+            "その車体軸(x=前進,y=左)で縦・横・ヨー誤差を計算。"
             "pose_header_stamp_sec が無い run はルート ndt_mean_pose を使用。"
         )
     else:
         description = (
-            "ndt_mean_pose を基準。車体軸はその姿勢（x=前進,y=左）。"
+            "ndt_mean_pose を基準。車体軸はその姿勢(x=前進,y=左)。"
             "各値は mean_pose 集計 JSON の per_run 測定 pose 相対の縦・横・ヨー誤差。"
         )
 
@@ -466,24 +466,24 @@ def main() -> None:
     ap.add_argument(
         "ndt_mean_pose_yaml",
         type=Path,
-        help="基準となる NDT 平均姿勢 YAML（ルート pose または ndt_mean_pose）",
+        help="基準となる NDT 平均姿勢 YAML(ルート pose または ndt_mean_pose)",
     )
     ap.add_argument(
         "mean_pose_json",
         type=Path,
-        help="mean_pose 各 run 測定を含む集計 JSON（aggregate_pose_mean_from_bags 出力）",
+        help="mean_pose 各 run 測定を含む集計 JSON(aggregate_pose_mean_from_bags 出力)",
     )
     ap.add_argument(
         "--yaml-out",
         type=Path,
         default=None,
-        help="結果 YAML の出力パス（省略時は mean_pose_json と同ディレクトリに *_vs_ndt_mean_pose.yaml）",
+        help="結果 YAML の出力パス(省略時は mean_pose_json と同ディレクトリに *_vs_ndt_mean_pose.yaml)",
     )
     ap.add_argument(
         "--json-out",
         type=Path,
         default=None,
-        help="同内容を JSON でも書く（省略可）",
+        help="同内容を JSON でも書く(省略可)",
     )
     ap.add_argument(
         "--max-pose-pointcloud-dt-sec",
@@ -491,7 +491,7 @@ def main() -> None:
         default=0.21,
         metavar="SEC",
         help="dt_pose_from_pointcloud_header_sec がこの秒数より大きい run は集計から除外。"
-        "既定: 0.21（measure_pose_mean の MAX_POSE_POINTCLOUD_DT_SEC と同義）。"
+        "既定: 0.21(measure_pose_mean の MAX_POSE_POINTCLOUD_DT_SEC と同義)。"
         "除外なしにする場合は --no-pose-pointcloud-dt-filter を指定。",
     )
     ap.add_argument(
@@ -510,7 +510,7 @@ def main() -> None:
     if excluded and max_dt_thr is not None:
         print(
             f"Info: {len(excluded)} run を比較集計から除外しました"
-            f"（dt_pose_from_pointcloud_header_sec > {max_dt_thr}）。"
+            f"(dt_pose_from_pointcloud_header_sec > {max_dt_thr})。"
             f"残り {len(per_run)} run。",
             file=sys.stderr,
         )
@@ -519,8 +519,8 @@ def main() -> None:
             json.dumps(
                 {
                     "status": "error",
-                    "reason": "比較に使える run が0件（全 run が dt_pose_from_pointcloud_header_sec 閾値超過、"
-                    "または dt フィールド欠落）",
+                    "reason": "比較に使える run が0件(全 run が dt_pose_from_pointcloud_header_sec 閾値超過、"
+                    "または dt フィールド欠落)",
                     "n_candidates": n_candidates,
                     "max_pose_pointcloud_dt_sec_for_comparison": max_dt_thr,
                     "excluded_from_comparison": excluded,
@@ -562,7 +562,7 @@ def main() -> None:
     yaw = deviation["yaw"]
     pass_criteria = deviation["longitudinal_pass_criteria"]
     pass_lines = "\n".join(
-        f"縦誤差合格（|longitudinal_m| <= {stats['max_abs_m']:.1f} m）: "
+        f"縦誤差合格(|longitudinal_m| <= {stats['max_abs_m']:.1f} m): "
         f"{stats['n_pass']}/{deviation['n_runs']}  "
         f"成功率={stats['success_rate_percent']:.1f}%"
         for stats in pass_criteria["by_threshold_m"].values()
@@ -573,16 +573,16 @@ def main() -> None:
         excluded_line = (
             f"候補 run 数: {deviation.get('n_runs_candidates', deviation['n_runs'])}  "
             f"除外: {excluded_n}  "
-            f"（dt_pose_from_pointcloud_header_sec > "
-            f"{deviation.get('max_pose_pointcloud_dt_sec_for_comparison')}）\n"
+            f"(dt_pose_from_pointcloud_header_sec > "
+            f"{deviation.get('max_pose_pointcloud_dt_sec_for_comparison')})\n"
         )
     print(
-        "\n--- 要約（ndt_mean_pose 基準） ---\n"
+        "\n--- 要約(ndt_mean_pose 基準) ---\n"
         f"{excluded_line}"
         f"run 数: {deviation['n_runs']}\n"
-        f"縦（前後）誤差 [m]: mean={lon['mean']:+.4f}  std={lon['std']:.4f}  "
+        f"縦(前後)誤差 [m]: mean={lon['mean']:+.4f}  std={lon['std']:.4f}  "
         f"max_abs={lon['max_abs']:.4f}\n"
-        f"横（左右）誤差 [m]: mean={lat['mean']:+.4f}  std={lat['std']:.4f}  "
+        f"横(左右)誤差 [m]: mean={lat['mean']:+.4f}  std={lat['std']:.4f}  "
         f"max_abs={lat['max_abs']:.4f}\n"
         f"ヨー誤差 [deg]: mean={yaw['mean_deg']:+.4f}  std={yaw['std_deg']:.4f}  "
         f"max_abs={yaw['max_abs_deg']:.4f}\n"

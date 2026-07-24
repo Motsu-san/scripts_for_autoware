@@ -7,7 +7,7 @@
 SAVE_DIR=$1
 TOPIC_TYPE=${2:-default}
 
-# SAVE_DIRが既に存在する場合は削除（ros2 bag recordが既存ディレクトリを許可しない場合があるため）
+# SAVE_DIRが既に存在する場合は削除(ros2 bag recordが既存ディレクトリを許可しない場合があるため)
 if [ -d "$SAVE_DIR" ]; then
     echo "Warning: SAVE_DIR already exists, removing: $SAVE_DIR"
     rm -rf "$SAVE_DIR"
@@ -47,7 +47,7 @@ case "$TOPIC_TYPE" in
         )
         ;;
     "calibration")
-        # オドメトリ調整（POSE_SOURCE_ID=99）: EKF の odom 融合 pose + 車速・IMU
+        # オドメトリ調整(POSE_SOURCE_ID=99): EKF の odom 融合 pose + 車速・IMU
         TOPICS=(
           /vehicle/status/velocity_status \
           /sensing/imu/tamagawa/imu_raw \
@@ -129,7 +129,7 @@ case "$TOPIC_TYPE" in
         )
         ;;
     "output_pose_mean")
-        # output に /localization/util/downsample/pointcloud を追加（複数回再生・平均姿勢評価用）
+        # output に /localization/util/downsample/pointcloud を追加(複数回再生・平均姿勢評価用)
         TOPICS=(
           /diagnostics \
           /localization/kinematic_state \

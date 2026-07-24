@@ -10,12 +10,12 @@
 #   AUTOWARE_WS              既定: 実行時 pwd
 #   NDT_START_POSE_YAML      省略時: rosbag と同じ階層の ndt_start_pose.yaml
 #   POINTCLOUD_TOPIC         既定: /sensing/lidar/concatenated/pointcloud
-#   NDT_PARAM_YAML           省略時: ndt_direct_measure の param（max_iterations=100）
+#   NDT_PARAM_YAML           省略時: ndt_direct_measure の param(max_iterations=100)
 #   N_RUNS                   既定: 1
 #   MAP_LOAD_MODE            all | metadata_radius (既定 metadata_radius)
 #   MAP_RADIUS_M             既定: 150
-#   MAP_METADATA_YAML        省略時: $MAP_PATH/pointcloud_map_metadata.yaml（無ければ親）
-#   NEIGHBOR_SCANS           最近傍の前後に align するスキャン数（既定: 2）
+#   MAP_METADATA_YAML        省略時: $MAP_PATH/pointcloud_map_metadata.yaml(無ければ親)
+#   NEIGHBOR_SCANS           最近傍の前後に align するスキャン数(既定: 2)
 #   NDT_DIRECT_OUTPUT_DIR    出力ディレクトリ
 #   BUILD_IF_MISSING=1       実行体が無いとき colcon build する
 

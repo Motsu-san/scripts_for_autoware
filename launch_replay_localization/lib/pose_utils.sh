@@ -29,7 +29,7 @@ sys.exit(0 if d.get('skip_initial_localization') else 1)
 " "$yaml_file" 2>/dev/null
 }
 
-# initial_pose.yaml から開始 UNIX 時刻を読む（calibrate_odom_from_bag.load_initial_pose_yaml と同じ優先順位）
+# initial_pose.yaml から開始 UNIX 時刻を読む(calibrate_odom_from_bag.load_initial_pose_yaml と同じ優先順位)
 read_initial_pose_start_unix_sec() {
     local yaml_file="$1"
     [ -f "$yaml_file" ] || return 1

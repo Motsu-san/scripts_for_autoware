@@ -132,11 +132,11 @@ def find_rosbag2_directory(bag_path: str) -> str:
     """
     bag_path_obj = Path(bag_path)
 
-    # 指定されたパスがrosbag2ディレクトリか確認（metadata.yamlが存在する）
+    # 指定されたパスがrosbag2ディレクトリか確認(metadata.yamlが存在する)
     if bag_path_obj.is_dir() and (bag_path_obj / "metadata.yaml").exists():
         return str(bag_path_obj)
 
-    # ディレクトリ内にrosbag2ディレクトリを探す（最新のものを選択）
+    # ディレクトリ内にrosbag2ディレクトリを探す(最新のものを選択)
     if bag_path_obj.is_dir():
         # サブディレクトリを探す
         rosbag2_dirs = [
@@ -145,7 +145,7 @@ def find_rosbag2_directory(bag_path: str) -> str:
         ]
 
         if rosbag2_dirs:
-            # 最新のディレクトリを選択（名前でソート）
+            # 最新のディレクトリを選択(名前でソート)
             latest_dir = sorted(rosbag2_dirs, key=lambda x: x.name, reverse=True)[0]
             return str(latest_dir)
 
@@ -162,7 +162,7 @@ def read_topic_timestamps(bag_path: str, topic_name: str) -> List[int]:
         topic_name: トピック名
 
     Returns:
-        [timestamp_ns, ...] のリスト（トピックが存在しない場合は空のリスト）
+        [timestamp_ns, ...] のリスト(トピックが存在しない場合は空のリスト)
     """
     # rosbag2ディレクトリを探す
     actual_bag_path = find_rosbag2_directory(bag_path)
@@ -199,8 +199,8 @@ def find_continuous_intervals(timestamps: List[int], max_gap_ns: int = 180000000
     タイムスタンプのリストから連続区間を検出
 
     Args:
-        timestamps: タイムスタンプのリスト（nanoseconds）
-        max_gap_ns: 連続とみなす最大の間隔（nanoseconds、デフォルト: 180ms）
+        timestamps: タイムスタンプのリスト(nanoseconds)
+        max_gap_ns: 連続とみなす最大の間隔(nanoseconds、デフォルト: 180ms)
 
     Returns:
         [(start_timestamp_ns, end_timestamp_ns), ...] のリスト
@@ -406,7 +406,7 @@ def interpolate_pose(data_list: List[Tuple[float, dict]], target_timestamp: int)
     for key in ['x', 'y', 'z', 'roll', 'pitch', 'yaw']:
         # roll, pitch, yawの角度補間は注意が必要
         if key in ['roll', 'pitch', 'yaw']:
-            # 角度の差分を計算（-πからπの範囲に正規化）
+            # 角度の差分を計算(-πからπの範囲に正規化)
             diff = pose2[key] - pose1[key]
             if diff > math.pi:
                 diff -= 2 * math.pi
@@ -429,7 +429,7 @@ def calculate_differences(
 
     車両座標系での差分を計算する場合:
     - 比較基準データの姿勢を基準として、比較対象データの位置を車両座標系に変換
-    - 位置差分: 比較基準データの姿勢で回転させた後の差分（前後/左右/上下方向）
+    - 位置差分: 比較基準データの姿勢で回転させた後の差分(前後/左右/上下方向)
     - 姿勢差分: 比較基準データの姿勢を基準とした相対姿勢
 
     Args:
@@ -441,8 +441,8 @@ def calculate_differences(
         (diff_list, reference_pose_list, target_pose_list) のタプル
         - diff_list: [(timestamp_ns, diff_data), ...] のリスト
           diff_dataは {'x', 'y', 'z', 'roll', 'pitch', 'yaw'} の差分を含む
-        - reference_pose_list: [(timestamp_ns, pose_data), ...] のリスト（比較基準データの位置姿勢）
-        - target_pose_list: [(timestamp_ns, pose_data), ...] のリスト（比較対象データの位置姿勢）
+        - reference_pose_list: [(timestamp_ns, pose_data), ...] のリスト(比較基準データの位置姿勢)
+        - target_pose_list: [(timestamp_ns, pose_data), ...] のリスト(比較対象データの位置姿勢)
     """
     # 共通のタイムスタンプ範囲を取得
     reference_start = reference_data[0][0]
@@ -485,7 +485,7 @@ def calculate_differences(
             ])
 
             # 比較基準データの姿勢で回転させて車両座標系に変換
-            # 回転行列の転置（逆回転）を適用
+            # 回転行列の転置(逆回転)を適用
             pos_diff_vehicle = reference_rotation_matrix.T @ pos_diff_global
 
             # 姿勢差分: 比較対象データの姿勢を比較基準データの姿勢で回転
@@ -499,15 +499,15 @@ def calculate_differences(
             relative_euler = relative_rotation.as_euler('xyz')
 
             diff_data = {
-                'x': pos_diff_vehicle[0],  # 前後方向（x軸）
-                'y': pos_diff_vehicle[1],  # 左右方向（y軸）
-                'z': pos_diff_vehicle[2],  # 上下方向（z軸）
+                'x': pos_diff_vehicle[0],  # 前後方向(x軸)
+                'y': pos_diff_vehicle[1],  # 左右方向(y軸)
+                'z': pos_diff_vehicle[2],  # 上下方向(z軸)
                 'roll': relative_euler[0],
                 'pitch': relative_euler[1],
                 'yaw': relative_euler[2]
             }
         else:
-            # グローバル座標系での差分計算（従来の方法）
+            # グローバル座標系での差分計算(従来の方法)
             diff_data = {
                 'x': target_pose['x'] - reference_pose['x'],
                 'y': target_pose['y'] - reference_pose['y'],
@@ -547,23 +547,23 @@ def plot_differences(
 
     Args:
         diff_list: [(timestamp_ns, diff_data), ...] のリスト
-        reference_pose_list: [(timestamp_ns, pose_data), ...] のリスト（比較基準データの位置姿勢）
-        target_pose_list: [(timestamp_ns, pose_data), ...] のリスト（比較対象データの位置姿勢）
+        reference_pose_list: [(timestamp_ns, pose_data), ...] のリスト(比較基準データの位置姿勢)
+        target_pose_list: [(timestamp_ns, pose_data), ...] のリスト(比較対象データの位置姿勢)
         output_dir: 出力ディレクトリ
         reference_name: 比較基準bagの名前
         target_name: 比較対象bagの名前
-        reference_path: 比較基準bagのパス（lidar_marker_localizerの連続区間検出用）
-        target_path: 比較対象bagのパス（lidar_marker_localizerの連続区間検出用）
+        reference_path: 比較基準bagのパス(lidar_marker_localizerの連続区間検出用)
+        target_path: 比較対象bagのパス(lidar_marker_localizerの連続区間検出用)
     """
     if len(diff_list) == 0:
         print("Warning: No difference data available")
         return
 
-    # タイムスタンプを秒に変換（最初のタイムスタンプを0秒とする）
+    # タイムスタンプを秒に変換(最初のタイムスタンプを0秒とする)
     start_time = diff_list[0][0]
     times = [(ts - start_time) / 1e9 for ts, _ in diff_list]  # nanoseconds to seconds
 
-    # lidar_marker_localizerの連続出力区間を検出（referenceがlidar_marker_localizerありの場合）
+    # lidar_marker_localizerの連続出力区間を検出(referenceがlidar_marker_localizerありの場合)
     lidar_marker_intervals = []
     if reference_path:
         debug_topic = "/localization/pose_estimator/lidar_marker_localizer/top_left/lidar_marker_localizer/debug/pose_with_covariance"
@@ -573,7 +573,7 @@ def plot_differences(
             if len(timestamps) > 0:
                 # 180ms = 180000000 nanoseconds
                 intervals = find_continuous_intervals(timestamps, max_gap_ns=180000000)
-                # タイムスタンプを秒に変換（start_timeを基準に）
+                # タイムスタンプを秒に変換(start_timeを基準に)
                 for start_ts, end_ts in intervals:
                     start_sec = (start_ts - start_time) / 1e9
                     end_sec = (end_ts - start_time) / 1e9
@@ -604,7 +604,7 @@ def plot_differences(
     fig, axes = plt.subplots(3, 2, figsize=(14, 10))
     fig.suptitle(f'Localization Difference Comparison\nReference: {reference_name} vs Target: {target_name}', fontsize=14)
 
-    # 位置の差分（車両座標系）
+    # 位置の差分(車両座標系)
     axes[0, 0].plot(times, x_diff, label='x', linewidth=1.5)
     # lidar_marker_localizerの連続区間を網掛け表示
     for start_sec, end_sec in lidar_marker_intervals:
@@ -697,7 +697,7 @@ def plot_differences(
     fig2, axes2 = plt.subplots(3, 2, figsize=(14, 10))
     fig2.suptitle(f'Localization Pose Comparison (Map Frame)\nReference: {reference_name} vs Target: {target_name}', fontsize=14)
 
-    # lidar_marker_localizerの連続区間を地図座標系のグラフにも適用（reference_start_timeを基準に変換）
+    # lidar_marker_localizerの連続区間を地図座標系のグラフにも適用(reference_start_timeを基準に変換)
     lidar_marker_intervals_map = []
     if reference_path and len(lidar_marker_intervals) > 0:
         for start_sec, end_sec in lidar_marker_intervals:
@@ -797,7 +797,7 @@ def plot_differences(
     print(f"  Yaw: Mean={np.mean(yaw_diff):.4f}, Std={np.std(yaw_diff):.4f}, "
           f"Max={np.max(np.abs(yaw_diff)):.4f}")
 
-    # CSVファイルにも保存（差分データ）
+    # CSVファイルにも保存(差分データ)
     csv_path = Path(output_dir) / 'localization_diff_data.csv'
     with open(csv_path, 'w') as f:
         f.write("time[s],x_diff[m],y_diff[m],z_diff[m],roll_diff[deg],pitch_diff[deg],yaw_diff[deg]\n")
@@ -842,14 +842,14 @@ def plot_diff_pose(
         output_dir: 出力ディレクトリ
         reference_name: 比較基準bagの名前
         target_name: 比較対象bagの名前
-        reference_path: 比較基準bagのパス（lidar_marker_localizerの連続区間検出用）
-        target_path: 比較対象bagのパス（lidar_marker_localizerの連続区間検出用）
+        reference_path: 比較基準bagのパス(lidar_marker_localizerの連続区間検出用)
+        target_path: 比較対象bagのパス(lidar_marker_localizerの連続区間検出用)
     """
     if len(reference_diff_pose) == 0 and len(target_diff_pose) == 0:
         print("Warning: No diff_pose data available")
         return
 
-    # タイムスタンプを秒に変換（最初のタイムスタンプを0秒とする）
+    # タイムスタンプを秒に変換(最初のタイムスタンプを0秒とする)
     all_timestamps = []
     if len(reference_diff_pose) > 0:
         all_timestamps.append(reference_diff_pose[0][0])
@@ -871,7 +871,7 @@ def plot_diff_pose(
             if len(timestamps) > 0:
                 # 180ms = 180000000 nanoseconds
                 intervals = find_continuous_intervals(timestamps, max_gap_ns=180000000)
-                # タイムスタンプを秒に変換（start_timeを基準に）
+                # タイムスタンプを秒に変換(start_timeを基準に)
                 for start_ts, end_ts in intervals:
                     start_sec = (start_ts - start_time) / 1e9
                     end_sec = (end_ts - start_time) / 1e9
@@ -992,7 +992,7 @@ def plot_diff_pose(
     print(f"diff_pose graph saved: {output_path}")
     plt.close(fig)
 
-    # CSVファイルにも保存（referenceとtargetを別々に保存）
+    # CSVファイルにも保存(referenceとtargetを別々に保存)
     csv_path = Path(output_dir) / 'diff_pose_data.csv'
     with open(csv_path, 'w') as f:
         f.write("bag,time[s],x[m],y[m],z[m],roll[deg],pitch[deg],yaw[deg]\n")
@@ -1022,25 +1022,25 @@ def main():
         '--reference_bag',
         type=str,
         required=True,
-        help='比較基準となるrosbag2のパス（例: lidar_marker_localizerあり）'
+        help='比較基準となるrosbag2のパス(例: lidar_marker_localizerあり)'
     )
     parser.add_argument(
         '--target_bag',
         type=str,
         required=True,
-        help='比較対象のrosbag2のパス（例: lidar_marker_localizerなし）'
+        help='比較対象のrosbag2のパス(例: lidar_marker_localizerなし)'
     )
     parser.add_argument(
         '--output_dir',
         type=str,
         default='./output',
-        help='出力ディレクトリ（デフォルト: ./output）'
+        help='出力ディレクトリ(デフォルト: ./output)'
     )
     parser.add_argument(
         '--topic',
         type=str,
         default='/localization/kinematic_state',
-        help='読み込むトピック名（デフォルト: /localization/kinematic_state）'
+        help='読み込むトピック名(デフォルト: /localization/kinematic_state)'
     )
 
     args = parser.parse_args()
@@ -1065,8 +1065,8 @@ def main():
         print(f"Error: No data found in {args.target_bag}")
         return
 
-    # 差分を計算（referenceを基準に、targetとの差分を計算）
-    # 車両座標系での差分を計算（比較基準データの姿勢を基準とした座標系）
+    # 差分を計算(referenceを基準に、targetとの差分を計算)
+    # 車両座標系での差分を計算(比較基準データの姿勢を基準とした座標系)
     print("Calculating differences in vehicle frame...")
     diff_list, reference_pose_list, target_pose_list = calculate_differences(reference_data, target_data, use_vehicle_frame=True)
     print(f"  Calculation completed: {len(diff_list)} data points")

@@ -16,7 +16,7 @@ check_required_packages() {
         if [ ${#_missing[@]} -gt 0 ]; then
             echo "Error: vehicle URDF 用パッケージが未インストール: ${_missing[*]}" | tee -a $LAUNCH_LOG_FILE >&2
             echo "  対処1) cd $CALL_DIR && source /opt/ros/humble/setup.bash && colcon build --packages-up-to aip_xx1_description" | tee -a $LAUNCH_LOG_FILE >&2
-            echo "  対処2) LAUNCH_VEHICLE=false $LAUNCH_SCRIPT_NAME <MAP> <BAG> ...  （TF は bag 頼み）" | tee -a $LAUNCH_LOG_FILE >&2
+            echo "  対処2) LAUNCH_VEHICLE=false $LAUNCH_SCRIPT_NAME <MAP> <BAG> ...  (TF は bag 頼み)" | tee -a $LAUNCH_LOG_FILE >&2
             exit 1
         fi
     fi
@@ -45,7 +45,7 @@ check_required_packages() {
         done
         unset _loc_ok
         if [ ${#_loc_miss[@]} -ne 0 ]; then
-            echo "Error: ローカリゼーション用パッケージが未インストール（いずれかの名前で存在すること）: ${_loc_miss[*]}" | tee -a $LAUNCH_LOG_FILE >&2
+            echo "Error: ローカリゼーション用パッケージが未インストール(いずれかの名前で存在すること): ${_loc_miss[*]}" | tee -a $LAUNCH_LOG_FILE >&2
             echo "  対処) cd $CALL_DIR && source /opt/ros/humble/setup.bash && colcon build --packages-up-to tier4_localization_launch" | tee -a $LAUNCH_LOG_FILE >&2
             echo "  または Autoware underlay を source した上で再実行: source /path/to/autoware/install/setup.bash" | tee -a $LAUNCH_LOG_FILE >&2
             exit 1
@@ -54,9 +54,9 @@ check_required_packages() {
 
     if [ "${LAUNCH_SENSING:-true}" = "true" ] && [ "$SENSOR_MODEL" = "aip_xx1" ]; then
         if ! ros2 pkg prefix pe_ars408_ros &>/dev/null; then
-            echo "Error: pe_ars408_ros（Continental ARS408）が未インストール。aip の radar launch に必須。" | tee -a $LAUNCH_LOG_FILE >&2
+            echo "Error: pe_ars408_ros(Continental ARS408)が未インストール。aip の radar launch に必須。" | tee -a $LAUNCH_LOG_FILE >&2
             echo "  対処) cd $CALL_DIR && source /opt/ros/humble/setup.bash && colcon build --packages-select pe_ars408_ros" | tee -a $LAUNCH_LOG_FILE >&2
-            echo "  緩和) LAUNCH_SENSING=false $LAUNCH_SCRIPT_NAME ...  （bag に点群等があればローカライゼーションは進む場合あり）" | tee -a $LAUNCH_LOG_FILE >&2
+            echo "  緩和) LAUNCH_SENSING=false $LAUNCH_SCRIPT_NAME ...  (bag に点群等があればローカライゼーションは進む場合あり)" | tee -a $LAUNCH_LOG_FILE >&2
             exit 1
         fi
     fi
@@ -84,7 +84,7 @@ check_required_packages() {
         done
         unset _api_ok
         if [ ${#_api_miss[@]} -gt 0 ]; then
-            echo "Error: API 用パッケージが未インストール（いずれかの名前で存在すること）: ${_api_miss[*]}" | tee -a $LAUNCH_LOG_FILE >&2
+            echo "Error: API 用パッケージが未インストール(いずれかの名前で存在すること): ${_api_miss[*]}" | tee -a $LAUNCH_LOG_FILE >&2
             echo "  対処) cd $CALL_DIR && source /opt/ros/humble/setup.bash && colcon build --packages-up-to tier4_autoware_api_launch" | tee -a $LAUNCH_LOG_FILE >&2
             exit 1
         fi

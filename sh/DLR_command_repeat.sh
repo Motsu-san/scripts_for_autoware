@@ -25,7 +25,7 @@ for i in $(seq 1 ${REPEAT_COUNT}); do
 
     $HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh
 
-    # 次の実行まで少し待機（オプション）
+    # 次の実行まで少し待機(オプション)
     if [ ${i} -lt ${REPEAT_COUNT} ]; then
         echo "次の実行まで3秒待機..."
         sleep 3

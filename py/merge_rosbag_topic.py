@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-rosbagに別のrosbagから特定のトピック（リマップ版）を追加するスクリプト
+rosbagに別のrosbagから特定のトピック(リマップ版)を追加するスクリプト
 
 使用方法:
     python3 merge_rosbag_topic.py \\
@@ -115,7 +115,7 @@ def main():
     parser.add_argument('--source-bag', required=True, help='元のrosbagのパス')
     parser.add_argument('--add-bag', required=True, help='追加するrosbagのパス')
     parser.add_argument('--add-topics', nargs='+', required=True, help='追加するトピック')
-    parser.add_argument('--remap', action='append', default=[], help='トピック名をリマップ（OLD:=NEW形式）')
+    parser.add_argument('--remap', action='append', default=[], help='トピック名をリマップ(OLD:=NEW形式)')
     parser.add_argument('--output-bag', required=True, help='出力先rosbagのパス')
 
     args = parser.parse_args()

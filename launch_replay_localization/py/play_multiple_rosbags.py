@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import sys
-# 出力バッファリングを無効化（ログに即座に出力されるように）
+# 出力バッファリングを無効化(ログに即座に出力されるように)
 sys.stdout = sys.__stdout__
 sys.stderr = sys.__stderr__
 
@@ -35,7 +35,7 @@ sys.stderr = sys.__stderr__
         --recorded-topics /localization/kinematic_state \
         --remap /localization/kinematic_state:=/localization/kinematic_state_recorded
 
-    # 再生速度とクロック周波数を指定（ros2 bag play -r 1.0 --clock 200 と同等）
+    # 再生速度とクロック周波数を指定(ros2 bag play -r 1.0 --clock 200 と同等)
     python3 play_multiple_rosbags.py \
         --source-bag /path/to/original.bag \
         --recorded-bag /path/to/recorded.bag \
@@ -72,13 +72,13 @@ class RosbagPlayer:
         """rosbagの再生を開始"""
         cmd = ['ros2', 'bag', 'play', self.bag_path]
 
-        # 再生速度（-r）
+        # 再生速度(-r)
         if self.rate != 1.0:
             cmd.extend(['-r', str(self.rate)])
 
-        # クロックオプション（--clock [Hz]）
+        # クロックオプション(--clock [Hz])
         # 注意: 複数のrosbagを同時に再生する場合、/clockトピックの競合を避けるため、
-        # 記録バッグ（recorded bag）ではuse_clock=Falseに設定してください
+        # 記録バッグ(recorded bag)ではuse_clock=Falseに設定してください
         if self.use_clock:
             if self.clock_hz is not None:
                 cmd.extend(['--clock', str(self.clock_hz)])
@@ -89,7 +89,7 @@ class RosbagPlayer:
         if self.start_offset > 0:
             cmd.extend(['--start-offset', str(self.start_offset)])
 
-        # トピック指定（リマップ前のトピック名で指定）
+        # トピック指定(リマップ前のトピック名で指定)
         # 注意: --topicsオプションは1回だけ指定し、その後に複数のトピック名を並べる
         if self.topics:
             cmd.extend(['--topics'])
@@ -97,14 +97,14 @@ class RosbagPlayer:
                 cmd.extend([topic])
                 print(f"再生トピック: {topic}", flush=True)
 
-        # トピック除外（ros2 bag playには--exclude-topicsオプションがないため、この機能は使用不可）
+        # トピック除外(ros2 bag playには--exclude-topicsオプションがないため、この機能は使用不可)
         # 代わりに--remapを使用してトピック名を変更して競合を避ける
         # if self.exclude_topics:
         #     for topic in self.exclude_topics:
         #         cmd.extend(['--exclude-topics', topic])
 
-        # リマップ（--topicsで指定したトピックをリマップ）
-        # 注意: --topicsで指定するトピック名はリマップ前の名前（rosbag内の元の名前）
+        # リマップ(--topicsで指定したトピックをリマップ)
+        # 注意: --topicsで指定するトピック名はリマップ前の名前(rosbag内の元の名前)
         if self.remap:
             for remap in self.remap:
                 cmd.extend(['--remap', remap])
@@ -128,7 +128,7 @@ class RosbagPlayer:
 
 
 def parse_remap(remap_str):
-    """リマップ文字列をパース（OLD:=NEW形式）"""
+    """リマップ文字列をパース(OLD:=NEW形式)"""
     if ':=/' not in remap_str:
         raise ValueError(f"無効なリマップ形式: {remap_str} (形式: OLD:=NEW)")
     return remap_str
@@ -183,34 +183,34 @@ def main():
         '--remap',
         action='append',
         default=[],
-        help='トピック名をリマップ（OLD:=NEW形式）。複数回指定可能'
+        help='トピック名をリマップ(OLD:=NEW形式)。複数回指定可能'
     )
 
     parser.add_argument(
         '--topics-only',
         action='store_true',
-        help='記録したrosbagの指定トピックのみを再生（注意: ros2 bag playには--exclude-topicsがないため、元のrosbagはそのまま再生されます。--remapを使用して競合を避けてください）'
+        help='記録したrosbagの指定トピックのみを再生(注意: ros2 bag playには--exclude-topicsがないため、元のrosbagはそのまま再生されます。--remapを使用して競合を避けてください)'
     )
 
     parser.add_argument(
         '-r', '--rate',
         type=float,
         default=1.0,
-        help='再生速度（-r、デフォルト: 1.0）'
+        help='再生速度(-r、デフォルト: 1.0)'
     )
 
     parser.add_argument(
         '--clock',
         type=float,
         default=None,
-        help='クロック周波数（Hz、--clock [Hz]）。指定しない場合はデフォルトのクロック'
+        help='クロック周波数(Hz、--clock [Hz])。指定しない場合はデフォルトのクロック'
     )
 
     parser.add_argument(
         '--start-offset',
         type=float,
         default=0,
-        help='開始オフセット（秒、デフォルト: 0）'
+        help='開始オフセット(秒、デフォルト: 0)'
     )
 
     args = parser.parse_args()
@@ -253,9 +253,9 @@ def main():
         start_offset=args.start_offset
     )
 
-    # 記録バッグのリマップリストを作成（/clockトピックのリマップを追加）
+    # 記録バッグのリマップリストを作成(/clockトピックのリマップを追加)
     recorded_remap = list(args.remap) if args.remap else []
-    # /clockトピックをリマップして競合を避ける（記録バッグの/clockは使用しない）
+    # /clockトピックをリマップして競合を避ける(記録バッグの/clockは使用しない)
     recorded_remap.append('/clock:=/clock_recorded')
 
     recorded_player = RosbagPlayer(
@@ -263,7 +263,7 @@ def main():
         topics=args.recorded_topics,
         remap=recorded_remap,
         rate=args.rate,
-        clock_hz=args.clock,  # 記録バッグも--clockオプションを使用（タイムスタンプ同期のため）
+        clock_hz=args.clock,  # 記録バッグも--clockオプションを使用(タイムスタンプ同期のため)
         start_offset=args.start_offset,
         use_clock=True  # 記録バッグも--clockオプションを使用するが、/clockトピックはリマップして競合を避ける
     )

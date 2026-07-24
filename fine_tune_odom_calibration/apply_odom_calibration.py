@@ -175,7 +175,7 @@ def main() -> int:
         "--correction-mode",
         choices=CORRECTION_MODES,
         default=None,
-        help="適用モード（省略時は calibration YAML の correction_mode_applied）",
+        help="適用モード(省略時は calibration YAML の correction_mode_applied)",
     )
     ap.add_argument(
         "--no-backup",

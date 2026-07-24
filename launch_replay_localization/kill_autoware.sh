@@ -18,12 +18,12 @@ EXCLUDE_PATTERNS=(
   'ros2 bag info'
   'webauto data rosbag'
   'webauto data log-file'
-  # このスクリプト自身（デバッグ実行時の誤爆防止）
+  # このスクリプト自身(デバッグ実行時の誤爆防止)
   'kill_autoware\.sh'
 )
 
 # --- (1) Allowlist: Autoware / 再生まわりだけ候補にする ---
-# 広い "pkill ros2" / "pgrep ros" は使わない（bag 加工を巻き込むため）
+# 広い "pkill ros2" / "pgrep ros" は使わない(bag 加工を巻き込むため)
 ALLOW_PATTERNS=(
   'rviz2'
   'aggregator_node'
@@ -36,13 +36,13 @@ ALLOW_PATTERNS=(
   'ros2 launch'
   'ros2 bag play'
   'ros2 bag record'
-  # Autoware ノード（component / standalone）
+  # Autoware ノード(component / standalone)
   '--ros-args'
-  # python 経由の ros2 CLI / ノード（exclude で bag filter 等は除外）
+  # python 経由の ros2 CLI / ノード(exclude で bag filter 等は除外)
   'python3.*ros2'
 )
 
-# pgrep -f でパターンに合う PID を列挙（数値のみ、重複除去）
+# pgrep -f でパターンに合う PID を列挙(数値のみ、重複除去)
 collect_pids_by_patterns() {
   local pat pid
   local -a out=()
@@ -103,7 +103,7 @@ is_protected() {
   [[ -n "${PROTECTED[$1]:-}" ]]
 }
 
-# 許可リスト候補から保護を除いた PID を返す（子孫も候補に含める）
+# 許可リスト候補から保護を除いた PID を返す(子孫も候補に含める)
 mapfile -t _allow_roots < <(collect_pids_by_patterns "${ALLOW_PATTERNS[@]}")
 mapfile -t _allow_all < <(printf '%s\n' "${_allow_roots[@]}" | expand_with_descendants)
 
@@ -160,7 +160,7 @@ else
 fi
 
 echo ===== daemon reboot
-# bag 加工を守るため、daemon 操作時点でも exclude 対象は触らない（ros2 CLI 自体は短命）
+# bag 加工を守るため、daemon 操作時点でも exclude 対象は触らない(ros2 CLI 自体は短命)
 ros2 daemon stop 2>/dev/null || true
 ros2 daemon start 2>/dev/null || true
 

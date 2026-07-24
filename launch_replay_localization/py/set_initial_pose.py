@@ -346,7 +346,7 @@ Examples:
         '--stamp-unix-sec',
         type=float,
         default=None,
-        help='initial pose の header.stamp に使う UNIX 時刻（省略時は get_clock().now()）',
+        help='initial pose の header.stamp に使う UNIX 時刻(省略時は get_clock().now())',
     )
     parser.add_argument(
         'pose_args',

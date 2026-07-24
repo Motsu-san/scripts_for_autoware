@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-rosbag2 PointCloud2 レイアウト変換（Autoware pointcloud_preprocessor 互換向け）
+rosbag2 PointCloud2 レイアウト変換(Autoware pointcloud_preprocessor 互換向け)
 
-対応パターン（各メッセージごとに自動判定）:
+対応パターン(各メッセージごとに自動判定):
   - PointXYZI (intensity が FLOAT32 の典型レイアウト) → PointXYZIRC
   - intensity が UINT8 の x,y,z,float 相当 4 フィールド → PointXYZIRC
   - PointXYZIRADRT (numpy 構造体と一致する point_step) → PointXYZIRCAEDT
-  - 既に PointXYZIRC / PointXYZIRCAEDT の場合はコピーのみ（無変換）
+  - 既に PointXYZIRC / PointXYZIRCAEDT の場合はコピーのみ(無変換)
 
 PointXYZIRC / PointXYZIRCAEDT の定義は autoware_pointcloud_preprocessor の
 is_data_layout_compatible_with_point_xyzirc / _xyzircaedt に合わせています。
@@ -14,7 +14,7 @@ is_data_layout_compatible_with_point_xyzirc / _xyzircaedt に合わせていま�
 Usage:
   python3 convert_pointcloud_type.py <input_bag> <output_bag> <topic_names>
 
-  <topic_names>: カンマ区切りのトピック名（例: /sensing/lidar/concatenated/pointcloud）
+  <topic_names>: カンマ区切りのトピック名(例: /sensing/lidar/concatenated/pointcloud)
 
 Example:
   python3 convert_pointcloud_type.py in_bag out_bag /sensing/lidar/concatenated/pointcloud
@@ -52,7 +52,7 @@ POINTXYZIRADRT_FIELDS = [
 
 POINTXYZIRADRT_DTYPE = np.dtype(POINTXYZIRADRT_FIELDS)
 
-# PointXYZIRCAEDT 出力（従来どおり）
+# PointXYZIRCAEDT 出力(従来どおり)
 POINTXYZIRCAEDT_FIELDS = [
     ("x", np.float32),
     ("y", np.float32),
@@ -79,7 +79,7 @@ def _unpack_one(fmt_base: str, data: bytes, offset: int, endian: str):
 
 
 def is_layout_xyzirc(msg: PointCloud2) -> bool:
-    """autoware_pointcloud_preprocessor memory.cpp と同条件（フィールド順固定）。"""
+    """autoware_pointcloud_preprocessor memory.cpp と同条件(フィールド順固定)。"""
     f = msg.fields
     if len(f) != 6:
         return False
@@ -144,7 +144,7 @@ def _field_by_name(msg: PointCloud2) -> Dict[str, PointField]:
 
 
 def is_layout_xyzi_loose(msg: PointCloud2) -> bool:
-    """x,y,z が FLOAT32、intensity が FLOAT32 または UINT8（オフセットは msg に従う）。"""
+    """x,y,z が FLOAT32、intensity が FLOAT32 または UINT8(オフセットは msg に従う)。"""
     lu = _field_by_name(msg)
     for req in ("x", "y", "z", "intensity"):
         if req not in lu:
@@ -181,8 +181,8 @@ def detect_layout(msg: PointCloud2) -> LayoutKind:
         return "iradrt"
     names = [f"{fld.name}@{fld.offset}({fld.datatype})" for fld in msg.fields]
     raise ValueError(
-        "未対応の PointCloud2 レイアウトです（PointXYZI / PointXYZIRC / PointXYZIRCAEDT / "
-        f"PointXYZIRADRT のいずれでもありません）。fields={names} point_step={msg.point_step}"
+        "未対応の PointCloud2 レイアウトです(PointXYZI / PointXYZIRC / PointXYZIRCAEDT / "
+        f"PointXYZIRADRT のいずれでもありません)。fields={names} point_step={msg.point_step}"
     )
 
 
@@ -287,7 +287,7 @@ def convert_iradrt_to_xyzircaedt(msg: PointCloud2) -> PointCloud2:
 
 
 def convert_pointcloud_dispatch(msg: PointCloud2) -> PointCloud2:
-    """変更不要のときは同一 msg インスタンスを返す（呼び出し側で is で元バイナリ流用可）。"""
+    """変更不要のときは同一 msg インスタンスを返す(呼び出し側で is で元バイナリ流用可)。"""
     kind = detect_layout(msg)
     if kind == "pass":
         return msg

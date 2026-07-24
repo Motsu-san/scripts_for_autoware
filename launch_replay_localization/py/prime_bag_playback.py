@@ -3,7 +3,7 @@
 rosbag 再生を --start-paused + --start-offset で開始し、sim time を合わせてから
 initial_pose を設定してから /rosbag2_player/resume で本再生する。
 
-launch_autoware.sh の -t 指定時（initial_pose.yaml あり）に使用する。
+launch_autoware.sh の -t 指定時(initial_pose.yaml あり)に使用する。
 """
 
 from __future__ import annotations
@@ -207,7 +207,7 @@ def build_bag_play_cmd(
 
 
 def open_play_stdin():
-    """ros2 bag play のキーボード操作向けに TTY を開く（無ければ None）。"""
+    """ros2 bag play のキーボード操作向けに TTY を開く(無ければ None)。"""
     try:
         if Path("/dev/tty").is_file():
             return open("/dev/tty", "r")  # noqa: SIM115
@@ -274,7 +274,7 @@ def main() -> int:
     parser.add_argument(
         "--use-bag-clock",
         action="store_true",
-        help="bag 内 /clock を使う（--clock を付けない）",
+        help="bag 内 /clock を使う(--clock を付けない)",
     )
     parser.add_argument(
         "--initial-pose-yaml",

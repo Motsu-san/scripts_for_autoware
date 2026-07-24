@@ -101,13 +101,13 @@ def main() -> int:
         "--output-bag",
         type=Path,
         required=True,
-        help="出力 bag ディレクトリ（新規作成）",
+        help="出力 bag ディレクトリ(新規作成)",
     )
     parser.add_argument(
         "--exclude-topic",
         action="append",
         default=[],
-        help="除外するトピック（複数指定可）",
+        help="除外するトピック(複数指定可)",
     )
     args = parser.parse_args()
 

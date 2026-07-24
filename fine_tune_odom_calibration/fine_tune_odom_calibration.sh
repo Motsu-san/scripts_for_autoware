@@ -9,24 +9,24 @@
 #
 # Options:
 #   --max-iterations N        既定: 10
-#   --rate R                  launch_autoware の再生速度（既定: 1.0）
+#   --rate R                  launch_autoware の再生速度(既定: 1.0)
 #   --force-sample-vehicle    launch に --force-sample-vehicle を明示的に付与
-#   --no-force-sample-vehicle 明示的に付与しない（既定は WS 名で自動判定）
+#   --no-force-sample-vehicle 明示的に付与しない(既定は WS 名で自動判定)
 #   --vehicle-velocity-param-yaml / --imu-corrector-param-yaml
 #                             省略時は AUTOWARE_WS 内の sample_sensor_kit 設定を自動解決
 #   --convergence-lat-threshold M   既定: 0.10
 #   --convergence-lon-threshold M   既定: 0.10
 #   --resume / --reset        状態ファイルから再開 / 削除して最初から
-#   --dry-run                 launch/apply をスキップ（SKIP_LAUNCH=1 時は calib のみ）
+#   --dry-run                 launch/apply をスキップ(SKIP_LAUNCH=1 時は calib のみ)
 #   --abort-on-divergence     2 連続で位置誤差が悪化したら停止
 #   --initial-pose-yaml PATH  省略時は dirname(SOURCE_ROSBAG)/initial_pose.yaml
-#   --pose-topic TOPIC        キャリブ用 pose（既定: EKF biased_pose / オドメトリのみ走行 POSE_SOURCE_ID=99）
+#   --pose-topic TOPIC        キャリブ用 pose(既定: EKF biased_pose / オドメトリのみ走行 POSE_SOURCE_ID=99)
 #
 # rosbag 再生は initial_pose 時刻 (-t) から mean_ndt_pose の target_unix_sec を
-# 1の位（整数秒）切り上げした時刻 (-T) まで（キャリブ区間の終端を確実に含める）。
+# 1の位(整数秒)切り上げした時刻 (-T) まで(キャリブ区間の終端を確実に含める)。
 # calibrate 自体は target_unix_sec そのものを使う。EXTRA_LAUNCH_ARGS の -t/-T は優先される。
 # apply 後は編集した param YAML を install 側へ同期し、次回 launch 前に値を検証する
-# （launch は find-pkg-share 経由で install を読むため）。
+# (launch は find-pkg-share 経由で install を読むため)。
 #
 # 環境変数:
 #   AUTOWARE_WS, GNSS_RECEIVER, POSE_TOPIC, EXTRA_LAUNCH_ARGS, SKIP_LAUNCH=1, RECORD_BAG=...
@@ -43,7 +43,7 @@ AUTOWARE_WS="${AUTOWARE_WS:-$(pwd)}"
 
 MAX_ITERATIONS=10
 PLAYBACK_RATE="1.0"
-FORCE_SAMPLE_VEHICLE=""  # 空=自動（autoware WS のみ付与）、1=強制ON、0=強制OFF
+FORCE_SAMPLE_VEHICLE=""  # 空=自動(autoware WS のみ付与)、1=強制ON、0=強制OFF
 RESUME=0
 RESET=0
 DRY_RUN=0
@@ -67,7 +67,7 @@ usage() {
     echo "" >&2
     echo "  param YAML 省略時: AUTOWARE_WS 内 sample_sensor_kit の vehicle_velocity_converter / imu_corrector" >&2
     echo "  pose-topic 既定: $DEFAULT_POSE_TOPIC" >&2
-    echo "  --force-sample-vehicle: WS 名が autoware のときのみ既定で付与（pilot-auto 等では付与しない）" >&2
+    echo "  --force-sample-vehicle: WS 名が autoware のときのみ既定で付与(pilot-auto 等では付与しない)" >&2
 }
 
 resolve_param_yaml_in_ws() {
@@ -753,7 +753,7 @@ PY
     PREV_ERROR_NORM="$err_norm"
 
     if [[ "$iter" -ge "$MAX_ITERATIONS" ]]; then
-        echo "Warning: 最大イテレーション $MAX_ITERATIONS に到達（未収束）" >&2
+        echo "Warning: 最大イテレーション $MAX_ITERATIONS に到達(未収束)" >&2
         exit 1
     fi
 

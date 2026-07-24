@@ -18,7 +18,7 @@ source $CALL_DIR/install/setup.bash
 trap "$HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh" EXIT INT TERM HUP
 
 if [ "$TIMEOUT_SECONDS" -eq 0 ]; then
-  # TIMEOUT_SECONDSが0の場合は最後まで再生する（timeoutコマンドを使用しない）
+  # TIMEOUT_SECONDSが0の場合は最後まで再生する(timeoutコマンドを使用しない)
   ros2 launch driving_log_replayer_v2 driving_log_replayer_v2.launch.py \
     scenario_path:=$SCENARIO_PATH \
     DATASET_path:=$DATASET_PATH \

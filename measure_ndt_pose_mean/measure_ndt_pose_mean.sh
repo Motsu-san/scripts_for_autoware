@@ -10,7 +10,7 @@
 #   AUTOWARE_WS=$PWD ./measure_ndt_pose_mean.sh [options] <MAP_PATH> <SOURCE_ROSBAG> [TARGET_UNIX_SEC]
 #
 # Options:
-#   -n, --n-runs <N>        実行回数（既定: 3）
+#   -n, --n-runs <N>        実行回数(既定: 3)
 #   --force-sample-vehicle  互換用に受け取るが direct 方式では未使用
 #   -h, --help
 #
@@ -24,10 +24,10 @@
 #   NDT_DIRECT_RAW_JSON      direct 実行体の raw JSON
 #   NDT_DIRECT_RAW_CSV       direct 実行体の raw CSV
 #   NDT_PARAM_YAML           NDT パラメータ YAML
-#   MAP_LOAD_MODE            all | metadata_radius（既定: metadata_radius）
-#   MAP_RADIUS_M             metadata_radius の半径 [m]（既定: 150）
+#   MAP_LOAD_MODE            all | metadata_radius(既定: metadata_radius)
+#   MAP_RADIUS_M             metadata_radius の半径 [m](既定: 150)
 #   MAP_METADATA_YAML        pointcloud_map_metadata.yaml
-#   NEIGHBOR_SCANS           最近傍の前後に align するスキャン数（既定: 2）
+#   NEIGHBOR_SCANS           最近傍の前後に align するスキャン数(既定: 2)
 #   BUILD_IF_MISSING=1       ndt_direct_measure 未ビルド時に colcon build
 
 set -euo pipefail
@@ -40,8 +40,8 @@ AUTOWARE_WS="${AUTOWARE_WS:-$(pwd)}"
 usage() {
     echo "Usage: AUTOWARE_WS=<ws> $0 [options] <MAP_PATH> <SOURCE_ROSBAG> [TARGET_UNIX_SEC]" >&2
     echo "  TARGET_UNIX_SEC 省略時: ndt_start_pose.yaml の header.stamp を使用" >&2
-    echo "  -n, --n-runs <N>  実行回数（既定: 3）" >&2
-    echo "  ndt_start_pose.yaml: rosbag と同じ階層（NDT_START_POSE_YAML で上書き可）" >&2
+    echo "  -n, --n-runs <N>  実行回数(既定: 3)" >&2
+    echo "  ndt_start_pose.yaml: rosbag と同じ階層(NDT_START_POSE_YAML で上書き可)" >&2
 }
 
 N_RUNS=3

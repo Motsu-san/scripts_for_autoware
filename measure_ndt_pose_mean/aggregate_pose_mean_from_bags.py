@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-複数の記録 rosbag から、指定 UNIX 時刻に最も近い geometry_msgs/PoseWithCovarianceStamped（または PoseStamped）
+複数の記録 rosbag から、指定 UNIX 時刻に最も近い geometry_msgs/PoseWithCovarianceStamped(または PoseStamped)
 を各 bag で抽出し、位置の算術平均・四元数符号揃え平均を求める。
 
 --align-pointcloud-topic を指定した場合は、各 bag でまず点群 (PointCloud2) の header.stamp が target に最も近い
-フレームを選び、その時刻に最も近い pose を採用する（run 間で「同じ点群フレーム」基準に揃える）。
+フレームを選び、その時刻に最も近い pose を採用する(run 間で「同じ点群フレーム」基準に揃える)。
 
 PoseWithCovarianceStamped のみ各 run で共分散 36 要素の算術平均も計算し、mean_pose.yaml に反映可能。
 
@@ -141,7 +141,7 @@ def extract_nearest_pose(
     topic_types = reader.get_all_topics_and_types()
     type_map = {topic_types[i].name: topic_types[i].type for i in range(len(topic_types))}
     if topic not in type_map:
-        # SequentialReader に close() が無い環境がある（rosbag2_py 版差）
+        # SequentialReader に close() が無い環境がある(rosbag2_py 版差)
         return None
     msg_type = get_message(type_map[topic])
     best: Optional[Tuple[float, Any, int]] = None
@@ -212,9 +212,9 @@ def deviation_about_mean_pose(
     Q: np.ndarray,
 ) -> Tuple[Dict[str, Any], List[Dict[str, float]]]:
     """
-    平均位置・平均四元数を基準に、各 run の縦（前進）・横（左）・ヨー差を求め、
-    ばらつき（標準偏差）と最大絶対偏差を返す。
-    ヨー基準は平均四元数からの yaw（円平均 yaw とは微小差の可能性あり）。
+    平均位置・平均四元数を基準に、各 run の縦(前進)・横(左)・ヨー差を求め、
+    ばらつき(標準偏差)と最大絶対偏差を返す。
+    ヨー基準は平均四元数からの yaw(円平均 yaw とは微小差の可能性あり)。
     """
     n = P.shape[0]
     if n == 0:
@@ -259,7 +259,7 @@ def deviation_about_mean_pose(
         std_yaw = 0.0
 
     stats: Dict[str, Any] = {
-        "description": "平均 pose（位置算術平均・姿勢は四元数平均）を基準。車体軸はその平均四元数（x=前進,y=左）。",
+        "description": "平均 pose(位置算術平均・姿勢は四元数平均)を基準。車体軸はその平均四元数(x=前進,y=左)。",
         "reference_yaw_rad": float(yaw_ref),
         "reference_yaw_deg": float(math.degrees(yaw_ref)),
         "longitudinal_m": {
@@ -376,7 +376,7 @@ def build_mean_pose_yaml(
 
 def main() -> None:
     p = argparse.ArgumentParser(
-        description="複数記録 bag から指定時刻近傍の pose を平均（EKF/NDT 等の PoseWithCovarianceStamped 向け）"
+        description="複数記録 bag から指定時刻近傍の pose を平均(EKF/NDT 等の PoseWithCovarianceStamped 向け)"
     )
     p.add_argument("--target-unix-sec", type=float, required=True)
     p.add_argument(
@@ -388,12 +388,12 @@ def main() -> None:
         "--bags",
         nargs="+",
         required=True,
-        help="記録 rosbag2 ディレクトリ（metadata.yaml があるパス）を複数指定",
+        help="記録 rosbag2 ディレクトリ(metadata.yaml があるパス)を複数指定",
     )
     p.add_argument(
         "--output-json",
         default="",
-        help="集計結果 JSON（省略可）",
+        help="集計結果 JSON(省略可)",
     )
     p.add_argument(
         "--output-mean-pose-yaml",
@@ -408,7 +408,7 @@ def main() -> None:
     p.add_argument(
         "--mean-pose-frame-id",
         default="map",
-        help="mean_pose_header_stamp.frame_id および pose 用の座標系（既定 map）",
+        help="mean_pose_header_stamp.frame_id および pose 用の座標系(既定 map)",
     )
     p.add_argument(
         "--align-pointcloud-topic",
@@ -422,7 +422,7 @@ def main() -> None:
         default=None,
         metavar="SEC",
         help="点群アライン時のみ有効: dt_pose_from_pointcloud_header_sec がこの秒数より大きい run は平均から除外。"
-        "例: 0.01〜0.02 は厳しめ、0.05 は緩め（約0.1sズレの欠けを通す可能性あり）。省略時は除外しない。",
+        "例: 0.01〜0.02 は厳しめ、0.05 は緩め(約0.1sズレの欠けを通す可能性あり)。省略時は除外しない。",
     )
     args = p.parse_args()
 
@@ -510,8 +510,8 @@ def main() -> None:
             json.dumps(
                 {
                     "status": "error",
-                    "reason": "平均に使える run が0件（全 run が dt_pose_from_pointcloud_header_sec 閾値超過、"
-                    "または bags が空）",
+                    "reason": "平均に使える run が0件(全 run が dt_pose_from_pointcloud_header_sec 閾値超過、"
+                    "または bags が空)",
                     "n_candidates": n_candidates,
                     "max_pose_pointcloud_dt_sec": max_dt_thr,
                     "excluded": excluded,
@@ -523,8 +523,8 @@ def main() -> None:
 
     if excluded:
         print(
-            f"Info: {len(excluded)} run を平均から除外しました（dt_pose_from_pointcloud_header_sec > "
-            f"{max_dt_thr}）。残り {len(per_run)} run。",
+            f"Info: {len(excluded)} run を平均から除外しました(dt_pose_from_pointcloud_header_sec > "
+            f"{max_dt_thr})。残り {len(per_run)} run。",
             file=sys.stderr,
         )
 

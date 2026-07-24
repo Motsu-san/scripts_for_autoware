@@ -4,7 +4,7 @@
 別の sqlite3 rosbag から /tf_static を取り出し、宛先 bag の先頭時刻に合わせて注入した複製を作る。
 
 宛先の metadata.starting_time より margin_ns 手前を「最後の tf_static」の時刻とし、
-ソース内の相対間隔を保ったまま過去方向へ写す（先頭の他トピックより必ず前になるようにする）。
+ソース内の相対間隔を保ったまま過去方向へ写す(先頭の他トピックより必ず前になるようにする)。
 
 使用例:
   source /opt/ros/humble/setup.bash
@@ -98,18 +98,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="宛先 rosbag に別 bag の /tf_static を先頭時刻に合わせて注入して複製する",
     )
-    parser.add_argument("--dest-bag", required=True, help="宛先 sqlite3 の .db3（単体ファイル可）")
+    parser.add_argument("--dest-bag", required=True, help="宛先 sqlite3 の .db3(単体ファイル可)")
     parser.add_argument("--src-tf-bag", required=True, help="/tf_static を取り出す sqlite3 の .db3")
     parser.add_argument(
         "--output-bag-dir",
         required=True,
-        help="まだ存在しない出力ディレクトリ（metadata.yaml と *_0.db3 が作成される）",
+        help="まだ存在しない出力ディレクトリ(metadata.yaml と *_0.db3 が作成される)",
     )
     parser.add_argument(
         "--margin-ns",
         type=int,
         default=1_000_000,
-        help="先頭メッセージ時刻より手前に置くマージン（ナノ秒）。既定 1ms",
+        help="先頭メッセージ時刻より手前に置くマージン(ナノ秒)。既定 1ms",
     )
     args = parser.parse_args()
 

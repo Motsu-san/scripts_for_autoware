@@ -2,7 +2,7 @@
 # driving_log_replayer_v2を並列実行するスクリプト
 # ROS_DOMAIN_IDを変更して複数インスタンスを同時実行
 
-PARALLEL_COUNT=2  # 並列実行数（デフォルトかつ推奨: 2 これ以上は安定性に懸念がある）
+PARALLEL_COUNT=2  # 並列実行数(デフォルトかつ推奨: 2 これ以上は安定性に懸念がある)
 TIMEOUT_SECONDS=1300
 
 CALL_DIR=$(pwd)
@@ -20,11 +20,11 @@ source $CALL_DIR/install/setup.bash
 # Set traps to stop all background processes when the script exits
 cleanup() {
     echo "Cleaning up background processes..."
-    # 各インスタンスのPIDをkill（プロセスグループごと）
+    # 各インスタンスのPIDをkill(プロセスグループごと)
     for pid in "${PIDS[@]}"; do
         if kill -0 "$pid" 2>/dev/null; then
             echo "Stopping instance with PID: $pid (and its process group)"
-            # プロセスグループ全体をkill（負のPIDを使用）
+            # プロセスグループ全体をkill(負のPIDを使用)
             # まずTERMシグナルで正常終了を試みる
             kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null
         fi
@@ -66,7 +66,7 @@ for i in $(seq 1 ${PARALLEL_COUNT}); do
     mkdir -p "${OUTPUT_DIR}"
 
     # 環境変数を設定してバックグラウンドで実行
-    # プロセスグループを新規作成（setsidを使用）
+    # プロセスグループを新規作成(setsidを使用)
     (
         export ROS_DOMAIN_ID=${DOMAIN_ID}
         export CYCLONEDDS_URI=file:///opt/autoware/cyclonedds_config.xml
@@ -94,12 +94,12 @@ for i in $(seq 1 ${PARALLEL_COUNT}); do
         echo "[Instance ${i}] Exit code: ${EXIT_CODE}" >> $HOME/log/DLR_replay_parallel_${i}_${DATETIME}.log
     ) &
 
-    # プロセスグループIDを取得（setsidで新規作成された場合）
+    # プロセスグループIDを取得(setsidで新規作成された場合)
     PID=$!
     PIDS+=($PID)
     echo "インスタンス ${i} のPID: $PID"
 
-    # インスタンス間で少し間隔を空ける（リソース競合を避ける）
+    # インスタンス間で少し間隔を空ける(リソース競合を避ける)
     sleep 2
 done
 

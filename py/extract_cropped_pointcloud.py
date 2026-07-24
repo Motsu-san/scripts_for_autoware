@@ -3,15 +3,15 @@
 rosbag2 から指定 PointCloud2 トピックを指定ボックス領域でクロップして抽出する。
 
 - 入力: rosbag2 + PointCloud2 トピック名 + ボックス範囲 (min_x, max_x, min_y, max_y, min_z, max_z)
-- 出力: クロップした点群のみが含まれる rosbag2（指定トピックのみ処理、他トピックはそのままコピー可）
+- 出力: クロップした点群のみが含まれる rosbag2(指定トピックのみ処理、他トピックはそのままコピー可)
 
 crop_box_filter (autoware_pointcloud_preprocessor) と同様の動作:
-  negative=False: ボックス外の点を除去 → ボックス内の点のみ残す（指定領域でクロップ）
-  negative=True:  ボックス内の点を除去（車体除去など）
+  negative=False: ボックス外の点を除去 → ボックス内の点のみ残す(指定領域でクロップ)
+  negative=True:  ボックス内の点を除去(車体除去など)
 
 注意: /sensing/lidar/front_lower/pandar_packets は生パケットのため PointCloud2 ではありません。
       点群をクロップするには、以下のいずれかが必要です:
-  1) rosbag にすでに PointCloud2 トピックがある場合（例: rectified/pointcloud_ex）→ 本スクリプトでそのトピックを指定
+  1) rosbag にすでに PointCloud2 トピックがある場合(例: rectified/pointcloud_ex)→ 本スクリプトでそのトピックを指定
   2) pandar_packets のみの場合 → Autoware で rosbag 再生し、点群に変換したトピックを crop_box_filter で処理して記録するか、
      一度点群トピックを record してから本スクリプトでオフラインクロップ
 
@@ -78,7 +78,7 @@ def crop_pointcloud(
 ) -> PointCloud2:
     """
     指定ボックスで点群をクロップする。crop_box_filter と同様。
-    negative=False: ボックス内の点のみ残す（指定領域でクロップ）
+    negative=False: ボックス内の点のみ残す(指定領域でクロップ)
     negative=True:  ボックス内の点を除去
     """
     (ox, dt_x), (oy, dt_y), (oz, dt_z) = get_xyz_offsets(msg)

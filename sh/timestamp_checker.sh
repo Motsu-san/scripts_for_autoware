@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# トピック名を引数から取得（デフォルト: /localization/util/downsample/pointcloud）
+# トピック名を引数から取得(デフォルト: /localization/util/downsample/pointcloud)
 TOPIC="${1:-/localization/util/downsample/pointcloud}"
 
 echo "Starting timestamp regression checker..."

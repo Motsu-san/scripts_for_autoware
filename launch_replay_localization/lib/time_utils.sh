@@ -47,7 +47,7 @@ parse_time_args_before_ros() {
             echo "Parsed -t as JST -> UNIX time: $START_UNIX_TIME"
         fi
     fi
-    # -t 未指定時: initial_pose.yaml の時刻を START_UNIX_TIME に使う（PRIME_BAG_PLAYBACK 等）
+    # -t 未指定時: initial_pose.yaml の時刻を START_UNIX_TIME に使う(PRIME_BAG_PLAYBACK 等)
     if [ -z "$START_UNIX_TIME" ] && [ -n "${INITIAL_POSE_YAML:-}" ] && [ -f "$INITIAL_POSE_YAML" ]; then
         local _yaml_start_unix
         _yaml_start_unix=$(read_initial_pose_start_unix_sec "$INITIAL_POSE_YAML" 2>/dev/null) || _yaml_start_unix=""

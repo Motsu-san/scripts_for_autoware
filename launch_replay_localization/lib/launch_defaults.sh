@@ -15,7 +15,7 @@ apply_launch_defaults() {
     case "$GNSS_RECEIVER" in
         ublox|septentrio) ;;
         *)
-            echo "Error: GNSS_RECEIVER / --gnss-receiver は ublox または septentrio のみ（現在: $GNSS_RECEIVER）" >&2
+            echo "Error: GNSS_RECEIVER / --gnss-receiver は ublox または septentrio のみ(現在: $GNSS_RECEIVER)" >&2
             exit 1
             ;;
     esac
@@ -47,7 +47,7 @@ apply_launch_defaults() {
         LAUNCH_LOG_FILE=""
     fi
 
-    # 時刻解釈の前に yaml パスを確定（-t 未指定時の initial_pose.yaml フォールバック用）
+    # 時刻解釈の前に yaml パスを確定(-t 未指定時の initial_pose.yaml フォールバック用)
     ROSBAG_DIR=$(dirname "$ROSBAG")
     INITIAL_POSE_YAML="${ROSBAG_DIR}/initial_pose.yaml"
 

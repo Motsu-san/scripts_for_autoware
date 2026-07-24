@@ -14,7 +14,7 @@ def extract_vehicle_id_fragment(rosbag_path):
     例: /path/to/rosbag_replay/x2_dev_<uuid8>-<uuid>_<date>_<time>/...
     -> <uuid8> を抽出
     """
-    # UUID形式のパターン（例: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）から最初の8文字を抽出
+    # UUID形式のパターン(例: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)から最初の8文字を抽出
     # または、x2_dev_xxxxxxxx のような形式から先頭8文字を抽出
     patterns = [
         r'([a-f0-9]{8})-',  # UUID形式の最初の8文字

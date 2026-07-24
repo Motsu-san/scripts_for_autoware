@@ -16,10 +16,10 @@
 
 # Usage: ./batch_compare_localization.sh <MAP_PATH> <ROSBAG_LIST_FILE> [OUTPUT_BASE_DIR] [AUTOWARE_DIR] [--reference_bag REF_BAG] [--target_bag TARGET_BAG]
 # ROSBAG_LIST_FILE: 各行にrosbagのパスを記載したファイル、またはスペース区切りのrosbagパス
-# OUTPUT_BASE_DIR: 結果を保存するベースディレクトリ（デフォルト: $HOME/comparison_results）
-# AUTOWARE_DIR: Autowareのディレクトリ（デフォルト: 現在のディレクトリ）
-# --reference_bag: 比較基準として使用するrosbagのパス（指定時、ndt_lidar-markerの再生をスキップ）
-# --target_bag: 比較対象として使用するrosbagのパス（指定時、ndtの再生をスキップ）
+# OUTPUT_BASE_DIR: 結果を保存するベースディレクトリ(デフォルト: $HOME/comparison_results)
+# AUTOWARE_DIR: Autowareのディレクトリ(デフォルト: 現在のディレクトリ)
+# --reference_bag: 比較基準として使用するrosbagのパス(指定時、ndt_lidar-markerの再生をスキップ)
+# --target_bag: 比較対象として使用するrosbagのパス(指定時、ndtの再生をスキップ)
 
 set -e
 
@@ -58,12 +58,12 @@ if [ $# -lt 2 ]; then
     echo "Arguments:"
     echo "  MAP_PATH: マップのパス"
     echo "  ROSBAG_LIST_FILE_OR_PATHS: rosbagのパスのリストファイル、またはスペース区切りのrosbagパス"
-    echo "  OUTPUT_BASE_DIR: 結果を保存するベースディレクトリ（デフォルト: \$HOME/comparison_results）"
-    echo "  AUTOWARE_DIR: Autowareのディレクトリ（デフォルト: 現在のディレクトリ）"
+    echo "  OUTPUT_BASE_DIR: 結果を保存するベースディレクトリ(デフォルト: \$HOME/comparison_results)"
+    echo "  AUTOWARE_DIR: Autowareのディレクトリ(デフォルト: 現在のディレクトリ)"
     echo ""
     echo "Options:"
-    echo "  --reference_bag REF_BAG: 比較基準として使用するrosbagのパス（指定時、ndt_lidar-markerの再生をスキップ）"
-    echo "  --target_bag TARGET_BAG: 比較対象として使用するrosbagのパス（指定時、ndtの再生をスキップ）"
+    echo "  --reference_bag REF_BAG: 比較基準として使用するrosbagのパス(指定時、ndt_lidar-markerの再生をスキップ)"
+    echo "  --target_bag TARGET_BAG: 比較対象として使用するrosbagのパス(指定時、ndtの再生をスキップ)"
     echo ""
     echo "Example:"
     echo "  $0 \"\$HOME/autoware_map\" \"\$HOME/rosbag_list.txt\""
@@ -158,7 +158,7 @@ FAILED_BAGS=()
 for i in "${!ROSBAG_LIST[@]}"; do
     ROSBAG="${ROSBAG_LIST[$i]}"
 
-    # rosbagの固有名を抽出（~/rosbag_replay直下のフォルダ名）
+    # rosbagの固有名を抽出(~/rosbag_replay直下のフォルダ名)
     ROSBAG_ABSPATH=$(readlink -f "$ROSBAG" 2>/dev/null || echo "$ROSBAG")
     ROSBAG_REPLAY_DIR="$HOME/rosbag_replay"
     ROSBAG_REPLAY_DIR_ABSPATH=$(readlink -f "$ROSBAG_REPLAY_DIR" 2>/dev/null || echo "$ROSBAG_REPLAY_DIR")
@@ -168,7 +168,7 @@ for i in "${!ROSBAG_LIST[@]}"; do
     if [[ "$ROSBAG_ABSPATH" == "$ROSBAG_REPLAY_DIR_ABSPATH"/* ]]; then
         # ~/rosbag_replay以降のパスを取得
         RELATIVE_PATH="${ROSBAG_ABSPATH#$ROSBAG_REPLAY_DIR_ABSPATH/}"
-        # 最初のディレクトリ名を取得（固有名）
+        # 最初のディレクトリ名を取得(固有名)
         FIRST_DIR=$(echo "$RELATIVE_PATH" | cut -d'/' -f1)
         ROSBAG_UNIQUE_NAME="$FIRST_DIR"
     fi
@@ -209,7 +209,7 @@ for i in "${!ROSBAG_LIST[@]}"; do
         continue
     fi
 
-    # このrosbag用の出力ディレクトリ（一意の名前を使用）
+    # このrosbag用の出力ディレクトリ(一意の名前を使用)
     ROSBAG_OUTPUT_DIR="$RESULTS_DIR/$ROSBAG_NAME"
     # 既に存在する場合は警告を出す
     if [ -d "$ROSBAG_OUTPUT_DIR" ]; then
@@ -218,7 +218,7 @@ for i in "${!ROSBAG_LIST[@]}"; do
     fi
     mkdir -p "$ROSBAG_OUTPUT_DIR"
 
-    # ROSBAG_DIRを設定（後で使用するため）
+    # ROSBAG_DIRを設定(後で使用するため)
     ROSBAG_DIR=$(dirname "$ROSBAG")
 
     # pose_source=0 (ndt) で実行
@@ -226,7 +226,7 @@ for i in "${!ROSBAG_LIST[@]}"; do
     if [ -n "$TARGET_BAG" ]; then
         echo ""
         echo "--- Skipping pose_source=0 (ndt) recording (using --target_bag instead) ---"
-        # target_bagのパスを確認（rosbag2ディレクトリかファイルか）
+        # target_bagのパスを確認(rosbag2ディレクトリかファイルか)
         if [ -d "$TARGET_BAG" ] && [ -f "$TARGET_BAG/metadata.yaml" ]; then
             TARGET_BAG_PATH="$TARGET_BAG"
         elif [ -f "$TARGET_BAG" ]; then
@@ -263,7 +263,7 @@ for i in "${!ROSBAG_LIST[@]}"; do
         else
         cd "$AUTOWARE_DIR"
 
-        # 既存のrecord_replay_*ディレクトリのリストを取得（削除対象を記録）
+        # 既存のrecord_replay_*ディレクトリのリストを取得(削除対象を記録)
         EXISTING_RECORD_DIRS_BEFORE=($(ls -d "$ROSBAG_DIR"/record_replay_* 2>/dev/null || true))
         echo "Existing record directories before launch: ${#EXISTING_RECORD_DIRS_BEFORE[@]}"
         if [ ${#EXISTING_RECORD_DIRS_BEFORE[@]} -gt 0 ]; then
@@ -287,11 +287,11 @@ for i in "${!ROSBAG_LIST[@]}"; do
         continue
     fi
 
-    # 記録されたrosbagを探す（新しく作成されたrecord_replay_*ディレクトリ）
-    # 少し待ってからディレクトリを探す（rosbag記録が完了するまで）
+    # 記録されたrosbagを探す(新しく作成されたrecord_replay_*ディレクトリ)
+    # 少し待ってからディレクトリを探す(rosbag記録が完了するまで)
     echo "Waiting for rosbag recording to complete..."
     sleep 5
-    # 最大30秒待つ（ディレクトリが作成されるまで）
+    # 最大30秒待つ(ディレクトリが作成されるまで)
     NEW_RECORD_DIR=""
     for i in {1..6}; do
         # 全てのrecord_replay_*ディレクトリを取得
@@ -354,12 +354,12 @@ for i in "${!ROSBAG_LIST[@]}"; do
         continue
     fi
 
-    # rosbag2のmetadata.yamlが存在するか確認（.db3ファイル形式の場合は不要）
+    # rosbag2のmetadata.yamlが存在するか確認(.db3ファイル形式の場合は不要)
     if [ ! -f "$TARGET_BAG_PATH/metadata.yaml" ]; then
-        # .db3ファイルが存在するか確認（SQLite3形式のrosbag2）
+        # .db3ファイルが存在するか確認(SQLite3形式のrosbag2)
         if [ -n "$(find "$TARGET_BAG_PATH" -maxdepth 1 -name "*.db3" -type f 2>/dev/null | head -1)" ]; then
             echo "  Found .db3 file (SQLite3 format rosbag2): $TARGET_BAG_PATH"
-            # .db3ファイル形式の場合はそのまま使用（metadata.yamlは不要）
+            # .db3ファイル形式の場合はそのまま使用(metadata.yamlは不要)
         else
             echo "Warning: metadata.yaml not found in $TARGET_BAG_PATH"
             echo "  Looking for rosbag2 directory..."
@@ -379,7 +379,7 @@ for i in "${!ROSBAG_LIST[@]}"; do
 
             echo "Recorded bag saved to: $TARGET_BAG_PATH"
 
-            # Autowareを停止（念のため）
+            # Autowareを停止(念のため)
             "$SCRIPT_DIR/../launch_replay_localization/kill_autoware.sh" || true
             sleep 5
         fi
@@ -390,7 +390,7 @@ for i in "${!ROSBAG_LIST[@]}"; do
     if [ -n "$REFERENCE_BAG" ]; then
         echo ""
         echo "--- Skipping pose_source=1 (ndt_lidar-marker) recording (using --reference_bag instead) ---"
-        # reference_bagのパスを確認（rosbag2ディレクトリかファイルか）
+        # reference_bagのパスを確認(rosbag2ディレクトリかファイルか)
         if [ -d "$REFERENCE_BAG" ] && [ -f "$REFERENCE_BAG/metadata.yaml" ]; then
             REFERENCE_BAG_PATH="$REFERENCE_BAG"
         elif [ -f "$REFERENCE_BAG" ]; then
@@ -427,7 +427,7 @@ for i in "${!ROSBAG_LIST[@]}"; do
         else
         cd "$AUTOWARE_DIR"
 
-        # 既存のrecord_replay_*ディレクトリのリストを取得（削除対象を記録）
+        # 既存のrecord_replay_*ディレクトリのリストを取得(削除対象を記録)
         EXISTING_RECORD_DIRS_BEFORE=($(ls -d "$ROSBAG_DIR"/record_replay_* 2>/dev/null || true))
         echo "Existing record directories before launch: ${#EXISTING_RECORD_DIRS_BEFORE[@]}"
         if [ ${#EXISTING_RECORD_DIRS_BEFORE[@]} -gt 0 ]; then
@@ -450,11 +450,11 @@ for i in "${!ROSBAG_LIST[@]}"; do
         continue
     fi
 
-    # 記録されたrosbagを探す（新しく作成されたrecord_replay_*ディレクトリ）
-    # 少し待ってからディレクトリを探す（rosbag記録が完了するまで）
+    # 記録されたrosbagを探す(新しく作成されたrecord_replay_*ディレクトリ)
+    # 少し待ってからディレクトリを探す(rosbag記録が完了するまで)
     echo "Waiting for rosbag recording to complete..."
     sleep 5
-    # 最大30秒待つ（ディレクトリが作成されるまで）
+    # 最大30秒待つ(ディレクトリが作成されるまで)
     NEW_RECORD_DIR=""
     for i in {1..6}; do
         # 全てのrecord_replay_*ディレクトリを取得
@@ -517,12 +517,12 @@ for i in "${!ROSBAG_LIST[@]}"; do
         continue
     fi
 
-    # rosbag2のmetadata.yamlが存在するか確認（.db3ファイル形式の場合は不要）
+    # rosbag2のmetadata.yamlが存在するか確認(.db3ファイル形式の場合は不要)
     if [ ! -f "$REFERENCE_BAG_PATH/metadata.yaml" ]; then
-        # .db3ファイルが存在するか確認（SQLite3形式のrosbag2）
+        # .db3ファイルが存在するか確認(SQLite3形式のrosbag2)
         if [ -n "$(find "$REFERENCE_BAG_PATH" -maxdepth 1 -name "*.db3" -type f 2>/dev/null | head -1)" ]; then
             echo "  Found .db3 file (SQLite3 format rosbag2): $REFERENCE_BAG_PATH"
-            # .db3ファイル形式の場合はそのまま使用（metadata.yamlは不要）
+            # .db3ファイル形式の場合はそのまま使用(metadata.yamlは不要)
         else
             echo "Warning: metadata.yaml not found in $REFERENCE_BAG_PATH"
             echo "  Looking for rosbag2 directory..."
@@ -542,7 +542,7 @@ for i in "${!ROSBAG_LIST[@]}"; do
 
             echo "Recorded bag saved to: $REFERENCE_BAG_PATH"
 
-            # Autowareを停止（念のため）
+            # Autowareを停止(念のため)
             "$SCRIPT_DIR/../launch_replay_localization/kill_autoware.sh" || true
             sleep 5
         fi
@@ -554,7 +554,7 @@ for i in "${!ROSBAG_LIST[@]}"; do
     COMPARISON_OUTPUT_DIR="$ROSBAG_OUTPUT_DIR/comparison_results"
     mkdir -p "$COMPARISON_OUTPUT_DIR"
 
-    # rosbag2のパスを取得（recorded_bagディレクトリ内のrosbag2データベース）
+    # rosbag2のパスを取得(recorded_bagディレクトリ内のrosbag2データベース)
     # rosbag2は通常、ディレクトリ内に複数のファイルがあるので、ディレクトリ自体をパスとして渡す
     if [ -z "$TARGET_BAG_PATH" ] || [ -z "$REFERENCE_BAG_PATH" ]; then
         echo "Error: Bag paths not set (TARGET_BAG_PATH=$TARGET_BAG_PATH, REFERENCE_BAG_PATH=$REFERENCE_BAG_PATH)"
@@ -577,8 +577,8 @@ for i in "${!ROSBAG_LIST[@]}"; do
         continue
     fi
 
-    # rosbag2ディレクトリの確認（metadata.yamlが存在するか、または.db3ファイルか）
-    # .db3ファイル形式（SQLite3）の場合はmetadata.yamlは不要
+    # rosbag2ディレクトリの確認(metadata.yamlが存在するか、または.db3ファイルか)
+    # .db3ファイル形式(SQLite3)の場合はmetadata.yamlは不要
     TARGET_BAG_VALID=false
     if [ -f "$TARGET_BAG_PATH/metadata.yaml" ]; then
         TARGET_BAG_VALID=true
@@ -626,7 +626,7 @@ for i in "${!ROSBAG_LIST[@]}"; do
     fi
 
     # Pythonスクリプトを実行
-    # lidar_marker_localizerあり（pose_source=1）を基準、なし（pose_source=0）を比較として設定
+    # lidar_marker_localizerあり(pose_source=1)を基準、なし(pose_source=0)を比較として設定
     COMPARE_SCRIPT="$HOME/scripts_for_autoware/py/compare_localization_diff.py"
     if [ ! -f "$COMPARE_SCRIPT" ]; then
         echo "Error: Comparison script not found: $COMPARE_SCRIPT"

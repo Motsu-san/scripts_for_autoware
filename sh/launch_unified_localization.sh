@@ -2,22 +2,22 @@
 
 # launch_unified_localization.sh — unified_localization (NDT+EKF in one node) 専用ランチスクリプト
 # Usage: ./launch_unified_localization.sh <MAP_PATH> <ROSBAG_PATH> [POSE_SOURCE_ID] [SAVE_LAUNCH_LOG] [TOPIC_TYPE] [--compare-bag COMPARE_BAG] [--compare-topics TOPIC1 TOPIC2 ...] [-t UNIX_TIME]
-# POSE_SOURCE_ID: 0=ndt, 1=ndt_lidar-marker（ログ等の表記用。unified_localization は単一ノードのため launch には NDT のみ使用）
+# POSE_SOURCE_ID: 0=ndt, 1=ndt_lidar-marker(ログ等の表記用。unified_localization は単一ノードのため launch には NDT のみ使用)
 # SAVE_LAUNCH_LOG: "true" で ros2 launch ログ保存
-# TOPIC_TYPE: record_rosbag 用（省略時は録画なし）
+# TOPIC_TYPE: record_rosbag 用(省略時は録画なし)
 # Rosbag には /localization/pose_twist_estimator/twist を含めるか、gyro_odometer を別途起動。点群は /sensing/lidar/concatenated/pointcloud。
 #
-# sample-rosbag 再生時は use_sim_time=false かつ --clock なしで再生（自動）。
+# sample-rosbag 再生時は use_sim_time=false かつ --clock なしで再生(自動)。
 # use_sim_time をオフにする場合: USE_SIM_TIME=false ./launch_unified_localization.sh <MAP_PATH> <ROSBAG_PATH> ...
 #
 # Requirements (必須・条件付きで参照するファイル。先頭で存在チェックする):
 #   - 常時: $SCRIPT_DIR/../launch_replay_localization/vehicle_configs.sh
 #   - 常時: $HOME/scripts_for_autoware/launch_replay_localization/kill_autoware.sh
-#   - 常時: カレントディレクトリが autoware ビルド済みで install/setup.bash が存在すること（引数チェックで検証）
+#   - 常時: カレントディレクトリが autoware ビルド済みで install/setup.bash が存在すること(引数チェックで検証)
 #   - TOPIC_TYPE 指定時: $SCRIPT_DIR/../launch_replay_localization/record_rosbag_localization_replay.sh
 #   - --compare-bag 指定時: $HOME/scripts_for_autoware/launch_replay_localization/py/play_multiple_rosbags.py
 #   - 使用時に存在確認: scripts_for_autoware/launch_replay_localization/py/set_initial_pose.py, gnss_to_initial_pose.py
-#   - unified_localization 起動時: autoware_unified_localization パッケージ（launch 内で検証）
+#   - unified_localization 起動時: autoware_unified_localization パッケージ(launch 内で検証)
 
 CALL_DIR=$(pwd)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -256,7 +256,7 @@ if [ -n "$START_UNIX_TIME" ]; then
     echo "Start from UNIX time -t $START_UNIX_TIME (bag start: $BAG_START_SEC) -> --start-offset ${START_OFFSET_SEC}s"
 fi
 
-# メイン launch（localization は起動しない）
+# メイン launch(localization は起動しない)
 ros2 launch autoware_launch logging_simulator.launch.xml \
     map_path:=$MAP_PATH \
     vehicle_model:=$VEHICLE_MODEL \

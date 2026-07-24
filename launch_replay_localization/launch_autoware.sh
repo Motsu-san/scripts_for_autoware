@@ -6,11 +6,11 @@
 # Requirements (必須・条件付きで参照するファイル。先頭で存在チェックする):
 #   - 常時: $SCRIPT_DIR/vehicle_configs.sh
 #   - 常時: $SCRIPT_DIR/kill_autoware.sh
-#   - 常時: カレントディレクトリが autoware ビルド済みで install/setup.bash が存在すること（引数チェックで検証）
+#   - 常時: カレントディレクトリが autoware ビルド済みで install/setup.bash が存在すること(引数チェックで検証)
 #   - TOPIC_TYPE 指定時: $SCRIPT_DIR/record_rosbag_localization_replay.sh
 #   - --compare-bag 指定時: $SCRIPT_DIR/py/play_multiple_rosbags.py
 #   - 使用時に存在確認: $SCRIPT_DIR/py/set_initial_pose.py, gnss_to_initial_pose.py
-#   - --record-rviz 指定時: $SCRIPT_DIR/capture_rviz_display.sh と xdotool（RViz ウィンドウ検出用）
+#   - --record-rviz 指定時: $SCRIPT_DIR/capture_rviz_display.sh と xdotool(RViz ウィンドウ検出用)
 #
 # POSE_SOURCE_ID: 0=ndt (default), 1=ndt_lidar-marker, 99=odometry only (pose_source:="")
 # SAVE_LAUNCH_LOG: "true" to save ros2 launch log, anything else or omitted disables log saving
@@ -18,16 +18,16 @@
 # --compare-bag, --compare-topics, --rate, --force-sample-vehicle, --gnss-receiver, --record-rviz, -t, -T
 #
 # -t TIME: Start playback from this time (UNIX or JST).
-#   未指定時は dirname(ROSBAG)/initial_pose.yaml の時刻（mean_pose_header_stamp / header_stamp /
-#   pose.header.stamp / header.stamp）を START_UNIX_TIME として使う。
+#   未指定時は dirname(ROSBAG)/initial_pose.yaml の時刻(mean_pose_header_stamp / header_stamp /
+#   pose.header.stamp / header.stamp)を START_UNIX_TIME として使う。
 #   initial_pose.yaml あり・開始時刻あり・単一 bag・use_sim_time 時は py/prime_bag_playback.py で
-#   一時停止オフセット再生 → sim time 合わせ → 初期位置 → resume（PRIME_BAG_PLAYBACK=false で無効化可）。
+#   一時停止オフセット再生 → sim time 合わせ → 初期位置 → resume(PRIME_BAG_PLAYBACK=false で無効化可)。
 #
 # 起動: tier4_localization_launch/localization_standalone.launch.xml があればそれを使用。
-# 無い環境（旧 Autoware 等）では autoware_launch/logging_simulator.launch.xml にフォールバック。
+# 無い環境(旧 Autoware 等)では autoware_launch/logging_simulator.launch.xml にフォールバック。
 # For unified_localization (NDT+EKF in one node), use launch_unified_localization.sh instead.
 #
-# sample-rosbag 再生時は use_sim_time=false かつ --clock なしで再生し、RViz チラつきを防ぐ（自動）。
+# sample-rosbag 再生時は use_sim_time=false かつ --clock なしで再生し、RViz チラつきを防ぐ(自動)。
 # 環境変数: LAUNCH_VEHICLE, LAUNCH_SYSTEM, LAUNCH_MAP, LAUNCH_SENSING, LAUNCH_SENSING_DRIVER,
 #   LAUNCH_API, LAUNCH_LOCALIZATION, LAUNCH_RVIZ, GNSS_RECEIVER, USE_SIM_TIME, RVIZ_CONFIG, ...
 

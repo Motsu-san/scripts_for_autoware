@@ -16,7 +16,7 @@ Usage:
   python3 check_ekf_diagnostics_stamp_delta.py
   python3 check_ekf_diagnostics_stamp_delta.py --topic /diagnostics
   python3 check_ekf_diagnostics_stamp_delta.py --print-main-level --diag-array-hz
-  # tee 用: EKF の debug inject を数秒おきに交互に param set（別スレッド）
+  # tee 用: EKF の debug inject を数秒おきに交互に param set(別スレッド)
   python3 check_ekf_diagnostics_stamp_delta.py --print-main-level --diag-array-hz \\
     --inject-auto-toggle-node /localization/pose_twist_fusion_filter/ekf_localizer \\
     --inject-toggle-interval-sec 5 --inject-toggle-sets 8 2>&1 | tee ekf_diag_toggle.log

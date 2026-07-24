@@ -6,23 +6,23 @@
 # Usage:
 #   ./run_deviation_estimator_with_bag.sh <ROSBAG_PATH>
 #
-# 環境変数（任意）:
-#   PILOT_AUTO_WS   pilot-auto ワークスペース（既定: 実行時のカレントディレクトリ。install/ がある場所に cd してから実行）
-#   IMU_TOPIC       in_imu リマップ先（既定: /sensing/imu/tamagawa/imu_raw）
-#   POSE_TOPIC      事前チェック用（既定: /localization/pose_estimator/pose_with_covariance）。launch を in_pose で変えたら合わせる
-#   WHEEL_TOPIC     事前チェック用（既定: /vehicle/status/velocity_status）。launch を in_wheel で変えたら合わせる
-#   PLAY_CLOCK_HZ   bag に /clock が無いとき ros2 bag play に渡す --clock（既定: 100）
-#   USE_SIM_TIME    launch の use_sim_time（既定: true）
-#   EXTRA_LAUNCH_ARGS  ros2 launch 末尾にそのまま追加する引数（例: in_pose_with_cov_name:=/foo）
-#   LAUNCH_CLEANUP_TIMEOUT_SEC  bag 再生後に ros2 launch を SIGINT してから SIGKILL まで待つ秒数（既定: 15）
+# 環境変数(任意):
+#   PILOT_AUTO_WS   pilot-auto ワークスペース(既定: 実行時のカレントディレクトリ。install/ がある場所に cd してから実行)
+#   IMU_TOPIC       in_imu リマップ先(既定: /sensing/imu/tamagawa/imu_raw)
+#   POSE_TOPIC      事前チェック用(既定: /localization/pose_estimator/pose_with_covariance)。launch を in_pose で変えたら合わせる
+#   WHEEL_TOPIC     事前チェック用(既定: /vehicle/status/velocity_status)。launch を in_wheel で変えたら合わせる
+#   PLAY_CLOCK_HZ   bag に /clock が無いとき ros2 bag play に渡す --clock(既定: 100)
+#   USE_SIM_TIME    launch の use_sim_time(既定: true)
+#   EXTRA_LAUNCH_ARGS  ros2 launch 末尾にそのまま追加する引数(例: in_pose_with_cov_name:=/foo)
+#   LAUNCH_CLEANUP_TIMEOUT_SEC  bag 再生後に ros2 launch を SIGINT してから SIGKILL まで待つ秒数(既定: 15)
 #   SKIP_BAG_TOPIC_CHECK  1 でトピック事前チェックをスキップ
-#   STRICT_BAG_TOPICS     1 で必須トピック欠落時に即 exit 1（既定は警告のみで続行）
+#   STRICT_BAG_TOPICS     1 で必須トピック欠落時に即 exit 1(既定は警告のみで続行)
 #
-# rosbag に必要なもの（欠けると deviation_estimator が ERROR/WARN になる）:
-#   - IMU（既定トピック上の sensor_msgs/Imu）
-#   - 車輪速系（既定: /vehicle/status/velocity_status）
-#   - ポーズ（既定: /localization/pose_estimator/pose_with_covariance）
-#   - TF: base_link と IMU リンク（例: tamagawa/imu_link）を結ぶ変換が /tf または /tf_static で再生時に解決できること
+# rosbag に必要なもの(欠けると deviation_estimator が ERROR/WARN になる):
+#   - IMU(既定トピック上の sensor_msgs/Imu)
+#   - 車輪速系(既定: /vehicle/status/velocity_status)
+#   - ポーズ(既定: /localization/pose_estimator/pose_with_covariance)
+#   - TF: base_link と IMU リンク(例: tamagawa/imu_link)を結ぶ変換が /tf または /tf_static で再生時に解決できること
 #   localization 再生だけの bag では sensing/vehicle や TF が無く、上記のようなログになることがある。
 #
 # 出力:
@@ -77,11 +77,11 @@ INSTALL_SETUP="$PILOT_AUTO_WS/install/local_setup.bash"
 if [ ! -f "$INSTALL_SETUP" ]; then
     echo "Error: pilot-auto の install が見つかりません: $INSTALL_SETUP" >&2
     echo "  ビルド済みワークスペースのルートで実行するか、PILOT_AUTO_WS にそのパスを指定してください。" >&2
-    echo "  （既定の PILOT_AUTO_WS は実行時のカレント: $CALL_DIR）" >&2
+    echo "  (既定の PILOT_AUTO_WS は実行時のカレント: $CALL_DIR)" >&2
     exit 1
 fi
 
-# ROS 2 ベース（あれば）→ pilot-auto
+# ROS 2 ベース(あれば)→ pilot-auto
 # set -u のまま source すると setup.bash 内の AMENT_TRACE_SETUP_FILES 等で落ちるため一時的に off
 set +u
 if [ -f /opt/ros/humble/setup.bash ]; then
@@ -95,8 +95,8 @@ fi
 source "$INSTALL_SETUP"
 set -u
 
-# bag に /clock がある場合は --clock を付けない（二重クロック防止）
-# 他トピックと同じ bag_lists_topic で判定（表記ゆれで取りこぼさない）
+# bag に /clock がある場合は --clock を付けない(二重クロック防止)
+# 他トピックと同じ bag_lists_topic で判定(表記ゆれで取りこぼさない)
 bag_has_clock_topic() {
     bag_lists_topic "$1" "/clock"
 }
@@ -116,7 +116,7 @@ bag_lists_topic() {
     '
 }
 
-# deviation_estimator / TF 前提の事前チェック（欠落は警告。STRICT_BAG_TOPICS=1 で失敗扱い）
+# deviation_estimator / TF 前提の事前チェック(欠落は警告。STRICT_BAG_TOPICS=1 で失敗扱い)
 check_bag_prerequisites() {
     if [ "${SKIP_BAG_TOPIC_CHECK:-0}" = "1" ]; then
         echo "Info: SKIP_BAG_TOPIC_CHECK=1 のためトピック事前チェックを省略します"
@@ -124,7 +124,7 @@ check_bag_prerequisites() {
     fi
     local missing=()
     bag_lists_topic "$ROSBAG" "$IMU_TOPIC" || missing+=("IMU: $IMU_TOPIC")
-    # deviation_estimator in_wheel 既定: /vehicle/status/velocity_status（欠落時は No wheel odometry）
+    # deviation_estimator in_wheel 既定: /vehicle/status/velocity_status(欠落時は No wheel odometry)
     if ! bag_lists_topic "$ROSBAG" "$WHEEL_TOPIC"; then
         if [ "$WHEEL_TOPIC" = "/vehicle/status/velocity_status" ]; then
             missing+=("vehicle(status): /vehicle/status/velocity_status (in_wheel 既定・欠けると No wheel odometry)")
@@ -139,7 +139,7 @@ check_bag_prerequisites() {
 
     if [ "$tf_ok" -eq 0 ]; then
         echo "Warning: bag に /tf も /tf_static も見当たりません。" \
-            "base_link〜IMU リンク（例: tamagawa/imu_link）の変換が再生時に解決できず、" \
+            "base_link〜IMU リンク(例: tamagawa/imu_link)の変換が再生時に解決できず、" \
             "「Please publish TF base_link to tamagawa/imu_link」等になることがあります。" >&2
         [ "${STRICT_BAG_TOPICS:-0}" = "1" ] && missing+=("TF: /tf または /tf_static")
     fi
