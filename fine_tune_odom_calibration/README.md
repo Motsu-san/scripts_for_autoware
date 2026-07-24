@@ -21,7 +21,7 @@ NDT で求めた真値姿勢（`mean_ndt_pose.yaml`）を基準に、**オドメ
 | [`calibrate_odom_from_bag.sh`](calibrate_odom_from_bag.sh) / [`calibrate_odom_from_bag.py`](calibrate_odom_from_bag.py) | rosbag から補正値を計算し `*_odom_calibration.yaml` を出力 |
 | [`apply_odom_calibration.py`](apply_odom_calibration.py) | 計算結果を `vehicle_velocity_converter.param.yaml` / `imu_corrector.param.yaml` に反映 |
 
-依存: 同リポジトリの [`launch_replay_localization/`](../launch_replay_localization/)（`launch_autoware.sh`）、[`measure_ndt_pose_mean/`](../measure_ndt_pose_mean/)、[`compare_mean_pose_yaml/`](../compare_mean_pose_yaml/)。
+依存: 同リポジトリの [`launch_replay_localization/`](../launch_replay_localization/)（`launch_autoware.sh`）、[`measure_ndt_pose_mean/`](../measure_ndt_pose_mean/)、[`compare_mean_pose/`](../compare_mean_pose/)。
 
 ## 前提
 

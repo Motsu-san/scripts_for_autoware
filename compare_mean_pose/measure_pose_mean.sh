@@ -10,10 +10,15 @@
 #
 # Usage:
 #   cd <autoware_ws>
-#   AUTOWARE_WS=$PWD ./measure_pose_mean.sh [options] <MAP_PATH> <SOURCE_ROSBAG> <TARGET_UNIX_SEC> [N_RUNS]
+#   AUTOWARE_WS=$PWD ./measure_pose_mean.sh [options] <MAP_PATH> <SOURCE_ROSBAG> [N_RUNS]
+#
+# 対象時刻: -T <UNIX秒> で指定。省略時は基準 mean_ndt_pose.yaml（NDT_MEAN_POSE_YAML / --compare-ref）の
+#   mean_pose_header_stamp（sec + nanosec）から導出する。導出した（または指定した）時刻が SOURCE_ROSBAG の
+#   時間範囲（metadata.yaml の starting_time + duration）に含まれない場合は停止する。
 #
 # Options:
-#   --resume, --reset, --aggregate-only, --force-sample-vehicle, -h, --help
+#   -T, --resume, --reset, --aggregate-only, --force-sample-vehicle,
+#   --compare-ref PATH, --skip-compare, -h, --help
 #   MEASURE_RESUME=1 は --resume と同義（環境変数）
 #
 # 環境変数:
@@ -31,9 +36,22 @@
 #                           空にすると従来どおり target のみで pose を選ぶ。
 #   MAX_POSE_POINTCLOUD_DT_SEC  点群アライン時、pose と点群 header の時刻差がこの秒数を超える run を平均から除外。
 #                               例: 0.01〜0.02（厳しめ）、0.05（緩め・約0.1s欠けを通す可能性あり）。未設定で除外なし。
+#                               （compare_mean_pose.sh へもそのまま引き継がれる。未設定時は compare 側の既定 0.21）。
+#
+# 集計後の位置比較（compare_mean_pose.sh）:
+#   平均を出して終わりではなく、基準となる direct NDT 平均姿勢（mean_ndt_pose.yaml、per_scan_summary の
+#   点群ヘッダー時刻ごとの参照 pose を含む）と、今回の集計 JSON の各 run 測定 pose を比較し、
+#   指定点群ヘッダー時刻での縦・横・ヨー誤差と合格率を出力する。
+#   NDT_MEAN_POSE_YAML   比較基準の mean_ndt_pose.yaml（--compare-ref でも指定可）。
+#                        省略時は STATE_DIR/mean_ndt_pose_direct_<TARGET_TAG>_*/mean_ndt_pose.yaml の最新を自動検出。
+#                        注意: この自動検出が働くのは「-T で時刻を与え、かつ基準 yaml を明示しない」場合のみ。
+#                        -T を省略した場合はNDT_MEAN_POSE_YAMLの指定が必須。
+#   SKIP_COMPARE=1       集計後の位置比較を行わない（--skip-compare でも可）。
+#   COMPARE_YAML_OUT / COMPARE_JSON_OUT  比較結果の出力パス（既定は集計出力ディレクトリ内 compare_vs_ndt_mean_pose.{yaml,json}）。
 #
 # 呼び出す launch_autoware.sh には常に --gnss-receiver <ublox|septentrio>（SOURCE_ROSBAG の ros2 bag info から推定）。
-# --force-sample-vehicle は本スクリプトのオプションで指定したときのみ付与。
+# --force-sample-vehicle は本スクリプトのオプションで指定したときに付与。
+#   ただし AUTOWARE_WS（既定は実行時 pwd）のワークスペース名が "autoware" の場合は、指定しなくても自動的に有効化する。
 # 状態ファイル（.measure_pose_mean_*.txt）は rosbag と同じ場所: .db3 ならその親ディレクトリ、ディレクトリ形式 bag ならそのディレクトリ内。
 # 既定の initial_pose.yaml / mean_pose 出力の親は従来どおり: 親が record_replay_* のときはその親（例: final_merged）。
 
@@ -42,7 +60,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LAUNCH_SCRIPT="$SCRIPT_DIR/../launch_replay_localization/launch_autoware.sh"
 AGGREGATE_PY="$SCRIPT_DIR/../measure_ndt_pose_mean/aggregate_pose_mean_from_bags.py"
+COMPARE_SCRIPT="$SCRIPT_DIR/compare_mean_pose.sh"
 AUTOWARE_WS="${AUTOWARE_WS:-$(pwd)}"
+SKIP_COMPARE="${SKIP_COMPARE:-0}"
 
 # ros2 bag info から NavSatFix トピック名で ublox / septentrio を推定（launch_autoware.sh の --gnss-receiver 用）
 detect_gnss_receiver_from_bag() {
@@ -77,20 +97,74 @@ RESUME=0
 RESET=0
 AGGREGATE_ONLY=0
 FORCE_SAMPLE_VEHICLE=0
+TARGET_OPT=""
 if [[ "${MEASURE_RESUME:-0}" == "1" ]]; then
     RESUME=1
 fi
 
+# mean_ndt_pose.yaml の mean_pose_header_stamp（sec/nanosec）から UNIX 秒（sec.nanosec 9桁）を得る
+read_target_from_yaml() {
+    python3 - "$1" <<'PYEOF'
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1], encoding="utf-8"))
+if not isinstance(d, dict) or "mean_pose_header_stamp" not in d:
+    print("mean_pose_header_stamp がありません", file=sys.stderr)
+    sys.exit(1)
+s = d["mean_pose_header_stamp"]
+try:
+    sec = int(s["sec"]); nsec = int(s["nanosec"])
+except Exception:
+    print("mean_pose_header_stamp.sec / nanosec が読めません", file=sys.stderr)
+    sys.exit(1)
+print(f"{sec}.{nsec:09d}")
+PYEOF
+}
+
+# 指定 UNIX 秒が rosbag の時間範囲（metadata.yaml の starting_time + duration）に含まれるか検証する
+check_target_in_bag_range() {
+    python3 - "$1" "$2" <<'PYEOF'
+import sys, yaml
+from pathlib import Path
+bag = Path(sys.argv[1]); target = float(sys.argv[2])
+def find_meta(p):
+    if p.is_dir() and (p / "metadata.yaml").exists():
+        return p / "metadata.yaml"
+    if p.is_file() and (p.parent / "metadata.yaml").exists():
+        return p.parent / "metadata.yaml"
+    if p.is_dir():
+        c = [d / "metadata.yaml" for d in p.iterdir() if d.is_dir() and (d / "metadata.yaml").exists()]
+        if c:
+            return sorted(c)[-1]
+    return None
+meta = find_meta(bag)
+if meta is None:
+    print(f"metadata.yaml が見つかりません: {bag}", file=sys.stderr)
+    sys.exit(3)
+m = yaml.safe_load(open(meta, encoding="utf-8"))["rosbag2_bagfile_information"]
+st = int(m["starting_time"]["nanoseconds_since_epoch"]); du = int(m["duration"]["nanoseconds"])
+start = st / 1e9; end = (st + du) / 1e9
+print(f"Info: bag 時間範囲 [{start:.6f}, {end:.6f}]（duration {du/1e9:.1f}s）, target={target:.9f}", file=sys.stderr)
+if not (start <= target <= end):
+    print(f"指定時刻 {target:.9f} は rosbag の時間範囲外です [{start:.6f}, {end:.6f}]", file=sys.stderr)
+    sys.exit(2)
+PYEOF
+}
+
 usage() {
-    echo "Usage: AUTOWARE_WS=<ws> $0 [options] <MAP_PATH> <SOURCE_ROSBAG> <TARGET_UNIX_SEC> [N_RUNS]" >&2
+    echo "Usage: AUTOWARE_WS=<ws> $0 [options] <MAP_PATH> <SOURCE_ROSBAG> [N_RUNS]" >&2
     echo "  N_RUNS 既定: 10" >&2
+    echo "  対象時刻は -T <UNIX秒> で指定。省略時は NDT_MEAN_POSE_YAML の mean_pose_header_stamp から導出" >&2
     echo "Options:" >&2
+    echo "  -T UNIX_SEC        対象時刻（UNIX 秒）。省略時は基準 mean_ndt_pose.yaml から導出" >&2
     echo "  --resume           状態ファイルから不足分だけ再生・追記して集計" >&2
     echo "  --reset            状態ファイルを削除してから新規実行" >&2
     echo "  --aggregate-only   再生なし。状態ファイルの bag 一覧だけで集計" >&2
     echo "  --force-sample-vehicle  launch_autoware.sh に同フラグを渡す（vehicle_configs の sample 強制）" >&2
+    echo "  --compare-ref PATH  集計後比較の基準 mean_ndt_pose.yaml（省略時は自動検出）" >&2
+    echo "  --skip-compare      集計後の compare_mean_pose.sh による位置比較を行わない" >&2
     echo "環境変数: PLAYBACK_RATE GT_POSE_TOPIC MEAN_POSE_YAML MEAN_POSE_OUTPUT_DIR INITIAL_POSE_YAML GT_AGG_JSON EXTRA_LAUNCH_ARGS" >&2
     echo "  SKIP_LAUNCH=1 BAGS_LIST_FILE  MEASURE_RESUME=1  ALIGN_POINTCLOUD_TOPIC  MAX_POSE_POINTCLOUD_DT_SEC" >&2
+    echo "  NDT_MEAN_POSE_YAML  SKIP_COMPARE=1  COMPARE_YAML_OUT  COMPARE_JSON_OUT" >&2
 }
 
 POSITIONAL=()
@@ -112,6 +186,26 @@ while [[ $# -gt 0 ]]; do
             FORCE_SAMPLE_VEHICLE=1
             shift
             ;;
+        --skip-compare)
+            SKIP_COMPARE=1
+            shift
+            ;;
+        -T)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: -T には UNIX 秒（例: 1739413378.847677946）が必要です" >&2
+                exit 1
+            fi
+            TARGET_OPT="$2"
+            shift 2
+            ;;
+        --compare-ref)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: --compare-ref には mean_ndt_pose.yaml のパスが必要です" >&2
+                exit 1
+            fi
+            NDT_MEAN_POSE_YAML="$2"
+            shift 2
+            ;;
         -h|--help)
             usage
             exit 0
@@ -129,7 +223,7 @@ while [[ $# -gt 0 ]]; do
 done
 set -- "${POSITIONAL[@]}"
 
-if [[ $# -lt 3 ]]; then
+if [[ $# -lt 2 ]]; then
     usage
     exit 1
 fi
@@ -147,13 +241,24 @@ if [[ ! -f "$AGGREGATE_PY" ]]; then
     echo "Error: aggregate_pose_mean_from_bags.py not found: $AGGREGATE_PY" >&2
     exit 1
 fi
+if [[ "$SKIP_COMPARE" != "1" ]] && [[ ! -f "$COMPARE_SCRIPT" ]]; then
+    echo "Error: compare_mean_pose.sh not found: $COMPARE_SCRIPT" >&2
+    echo "  比較不要なら --skip-compare / SKIP_COMPARE=1 を指定してください。" >&2
+    exit 1
+fi
 
 MAP_PATH="$1"
 SOURCE_ROSBAG="$2"
-TARGET_UNIX_SEC="$3"
-N_RUNS="${4:-10}"
+N_RUNS="${3:-10}"
 PLAYBACK_RATE="${PLAYBACK_RATE:-1.0}"
 GT_POSE_TOPIC="${GT_POSE_TOPIC:-/localization/pose_estimator/pose_with_covariance}"
+
+# AUTOWARE_WS のワークスペース名が "autoware"（sample_vehicle 構成しか持たない素の autoware）なら、
+# --force-sample-vehicle を明示しなくても自動的に有効化する。
+if [[ "$FORCE_SAMPLE_VEHICLE" != "1" && "$(basename "$AUTOWARE_WS")" == "autoware" ]]; then
+    FORCE_SAMPLE_VEHICLE=1
+    echo "Info: AUTOWARE_WS=$AUTOWARE_WS が autoware のため --force-sample-vehicle を自動有効化します" >&2
+fi
 
 if [[ ! -d "$AUTOWARE_WS/install" ]]; then
     echo "Error: AUTOWARE_WS に install が見つかりません: $AUTOWARE_WS/install" >&2
@@ -181,10 +286,70 @@ if [[ "$_rs_base" == record_replay_* ]]; then
 else
     STATE_DIR="$RECORD_SCAN_DIR"
 fi
+
+# 対象時刻の決定: -T があればそれ。無ければ NDT_MEAN_POSE_YAML の mean_pose_header_stamp から導出。
+# （自動検出は TARGET_TAG に依存するため、-T 省略時は基準 yaml の明示指定が必要）
+if [[ -n "$TARGET_OPT" ]]; then
+    TARGET_UNIX_SEC="$TARGET_OPT"
+else
+    if [[ "$SKIP_COMPARE" == "1" ]]; then
+        echo "Error: -T 未指定かつ SKIP_COMPARE=1 のため対象時刻を決められません。-T <UNIX秒> を指定してください。" >&2
+        exit 1
+    fi
+    if [[ -z "${NDT_MEAN_POSE_YAML:-}" ]]; then
+        echo "Error: -T を省略する場合は NDT_MEAN_POSE_YAML（--compare-ref）で基準 mean_ndt_pose.yaml を指定してください（そこから対象時刻を読みます）。" >&2
+        exit 1
+    fi
+    if [[ ! -f "$NDT_MEAN_POSE_YAML" ]]; then
+        echo "Error: NDT_MEAN_POSE_YAML がありません: $NDT_MEAN_POSE_YAML" >&2
+        exit 1
+    fi
+    TARGET_UNIX_SEC="$(read_target_from_yaml "$NDT_MEAN_POSE_YAML")" || {
+        echo "Error: NDT_MEAN_POSE_YAML から対象時刻を導出できませんでした: $NDT_MEAN_POSE_YAML" >&2
+        exit 1
+    }
+    echo "Info: -T 未指定のため NDT_MEAN_POSE_YAML から対象時刻を導出: $TARGET_UNIX_SEC" >&2
+    echo "Info:   （基準 yaml: $NDT_MEAN_POSE_YAML）" >&2
+fi
+
+# 対象時刻が SOURCE_ROSBAG の時間範囲に含まれるか検証（含まれなければ停止）
+if ! check_target_in_bag_range "$SOURCE_ABS" "$TARGET_UNIX_SEC"; then
+    echo "Error: 対象時刻 $TARGET_UNIX_SEC は SOURCE_ROSBAG の時間範囲に含まれません（または metadata.yaml を特定できません）: $SOURCE_ABS" >&2
+    exit 1
+fi
+
 TARGET_TAG="${TARGET_UNIX_SEC//./_}"
 STATE_FILE="$STATE_FILE_DIR/.measure_pose_mean_t${TARGET_TAG}_n${N_RUNS}.txt"
 
 INITIAL_POSE_YAML="${INITIAL_POSE_YAML:-$STATE_DIR/initial_pose.yaml}"
+
+# 集計後の位置比較（compare_mean_pose.sh）の基準 mean_ndt_pose.yaml を解決する。
+# NDT_MEAN_POSE_YAML（--compare-ref）を明示指定 → 無ければ即エラー（長い再生の前に失敗させる）。
+# 未指定 → STATE_DIR/mean_ndt_pose_direct_<TARGET_TAG>_*/mean_ndt_pose.yaml の最新を自動検出。
+#   自動検出は `ls -td <glob> | head -1`（mtime 新しい順の先頭1件）。末尾 _* は _n<回数>_<日時> を吸収。
+#   注意: この自動検出が働くのは「-T で時刻を与え、かつ基準 yaml を明示しない」場合のみ。
+#         -T を省略すると TARGET_TAG を作るための時刻を NDT_MEAN_POSE_YAML から読む必要があり
+#         （ニワトリ卵）、その場合は上流で NDT_MEAN_POSE_YAML の明示指定を必須にしているため、
+#         この glob 分岐には入らない（明示パス側で解決される）。
+COMPARE_REF_YAML=""
+if [[ "$SKIP_COMPARE" != "1" ]]; then
+    if [[ -n "${NDT_MEAN_POSE_YAML:-}" ]]; then
+        if [[ ! -f "$NDT_MEAN_POSE_YAML" ]]; then
+            echo "Error: 指定された比較基準がありません: NDT_MEAN_POSE_YAML=$NDT_MEAN_POSE_YAML" >&2
+            exit 1
+        fi
+        COMPARE_REF_YAML="$(realpath -m "$NDT_MEAN_POSE_YAML" 2>/dev/null || echo "$NDT_MEAN_POSE_YAML")"
+    else
+        COMPARE_REF_YAML="$(ls -td "$STATE_DIR"/mean_ndt_pose_direct_"${TARGET_TAG}"_*/mean_ndt_pose.yaml 2>/dev/null | head -1 || true)"
+        if [[ -z "$COMPARE_REF_YAML" || ! -f "$COMPARE_REF_YAML" ]]; then
+            echo "Warning: 比較基準 mean_ndt_pose.yaml が自動検出できません:" >&2
+            echo "         $STATE_DIR/mean_ndt_pose_direct_${TARGET_TAG}_*/mean_ndt_pose.yaml" >&2
+            echo "         集計後の位置比較はスキップされます。NDT_MEAN_POSE_YAML（--compare-ref）で明示指定するか、" >&2
+            echo "         measure_ndt_pose_mean.sh で基準（direct NDT 平均）を先に作成してください。" >&2
+            COMPARE_REF_YAML=""
+        fi
+    fi
+fi
 
 echo "Info: 再生元: $SOURCE_ABS" >&2
 echo "Info: 新規記録の探索ディレクトリ: $RECORD_SCAN_DIR" >&2
@@ -193,6 +358,11 @@ echo "Info: 既定 initial_pose / 集計ベースディレクトリ (STATE_DIR):
 echo "Info: bag 推定 --gnss-receiver: $GNSS_RECEIVER_DETECTED" >&2
 if [[ "$FORCE_SAMPLE_VEHICLE" == "1" ]]; then
     echo "Info: launch に --force-sample-vehicle を付与します" >&2
+fi
+if [[ "$SKIP_COMPARE" == "1" ]]; then
+    echo "Info: 集計後の位置比較はスキップします（SKIP_COMPARE=1 / --skip-compare）" >&2
+elif [[ -n "$COMPARE_REF_YAML" ]]; then
+    echo "Info: 集計後の位置比較の基準 mean_ndt_pose.yaml: $COMPARE_REF_YAML" >&2
 fi
 
 invoke_launch_autoware_for_measure() {
@@ -435,5 +605,27 @@ fi
 
 echo "Wrote: $OUT_JSON" >&2
 echo "Wrote: $MEAN_POSE_YAML" >&2
+
+# 集計に続けて、基準 mean_ndt_pose.yaml との位置比較（指定点群ヘッダー時刻ごとの縦・横・ヨー誤差と合格率）。
+# compare 側は MAX_POSE_POINTCLOUD_DT_SEC を尊重（未設定なら compare の既定 0.21）。
+if [[ "$SKIP_COMPARE" != "1" && -n "$COMPARE_REF_YAML" ]]; then
+    COMPARE_YAML_OUT="${COMPARE_YAML_OUT:-$MEAN_POSE_OUTPUT_DIR/compare_vs_ndt_mean_pose.yaml}"
+    COMPARE_JSON_OUT="${COMPARE_JSON_OUT:-$MEAN_POSE_OUTPUT_DIR/compare_vs_ndt_mean_pose.json}"
+    echo "Info: 位置比較を実行: $COMPARE_SCRIPT" >&2
+    echo "Info:   基準 (mean_ndt_pose.yaml): $COMPARE_REF_YAML" >&2
+    echo "Info:   対象 (集計 JSON):         $OUT_JSON" >&2
+    if bash "$COMPARE_SCRIPT" "$COMPARE_REF_YAML" "$OUT_JSON" \
+        --yaml-out "$COMPARE_YAML_OUT" --json-out "$COMPARE_JSON_OUT"; then
+        echo "Wrote: $COMPARE_YAML_OUT" >&2
+        echo "Wrote: $COMPARE_JSON_OUT" >&2
+    else
+        _cmp_rc=$?
+        echo "Error: compare_mean_pose.sh が失敗しました (exit=$_cmp_rc)。集計結果は保存済みです。" >&2
+        exit "$_cmp_rc"
+    fi
+elif [[ "$SKIP_COMPARE" != "1" ]]; then
+    echo "Info: 比較基準 mean_ndt_pose.yaml がないため位置比較はスキップしました" >&2
+fi
+
 echo "Output dir: $MEAN_POSE_OUTPUT_DIR" >&2
 echo "State file: $STATE_FILE" >&2

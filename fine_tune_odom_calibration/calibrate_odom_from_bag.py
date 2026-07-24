@@ -46,7 +46,7 @@ def _read_velocity_report_fields(msg: Any) -> Optional[Tuple[float, float]]:
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _MEASURE_DIR = _SCRIPT_DIR.parent / "measure_ndt_pose_mean"
-_COMPARE_DIR = _SCRIPT_DIR.parent / "compare_mean_pose_yaml"
+_COMPARE_DIR = _SCRIPT_DIR.parent / "compare_mean_pose"
 for _p in (_SCRIPT_DIR, _MEASURE_DIR, _COMPARE_DIR):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
@@ -58,7 +58,7 @@ from aggregate_pose_mean_from_bags import (  # noqa: E402
     stamp_to_sec,
     yaw_from_quat_xyzw,
 )
-from compare_mean_pose_yaml import (  # noqa: E402
+from compare_mean_pose import (  # noqa: E402
     load_ndt_mean_pose_block,
     wrap_angle_rad,
 )
@@ -626,7 +626,7 @@ def body_frame_deviation(
     meas_pos: np.ndarray,
     meas_quat: np.ndarray,
 ) -> Dict[str, float]:
-    """ref 姿勢の車体座標系での縦・横・ヨー差（compare_mean_pose_yaml と同様）。"""
+    """ref 姿勢の車体座標系での縦・横・ヨー差（compare_mean_pose と同様）。"""
     r_ref = R.from_quat(ref_quat)
     yaw_ref = yaw_from_quat_xyzw(ref_quat)
     d_map = meas_pos - ref_pos

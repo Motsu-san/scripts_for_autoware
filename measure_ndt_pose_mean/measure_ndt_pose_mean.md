@@ -27,7 +27,7 @@ pose_initializer の経路の影響で **NDT への入力初期位置がばら�
 
 既存ツールとの位置づけ:
 
-- [`../sh/measure_pose_mean.sh`](../sh/measure_pose_mean.sh): 複数回 **bag 再生**＋EKF pose などの記録後、bag 間で平均
+- [`../compare_mean_pose/measure_pose_mean.sh`](../compare_mean_pose/measure_pose_mean.sh): 複数回 **bag 再生**＋EKF pose などの記録後、bag 間で平均
 - 本ツール: **単一センサーフレーム×固定初期 pose** で NDT 出力のばらつきを評価・平均
 - [`measure_ndt_direct.sh`](measure_ndt_direct.sh): 本ツールが内部で呼ぶ raw align 実行（既定 `N_RUNS=1`）
 
@@ -150,4 +150,4 @@ AUTOWARE_WS=$PWD /path/to/scripts_for_autoware/measure_ndt_pose_mean/measure_ndt
 
 ## 参考: EKF pose 側の複数回放送平均
 
-複数回放送での EKF・点群アライン付き平均は [`../sh/measure_pose_mean.sh`](../sh/measure_pose_mean.sh) と [`aggregate_pose_mean_from_bags.py`](aggregate_pose_mean_from_bags.py) を参照してください。
+複数回放送での EKF・点群アライン付き平均は [`../compare_mean_pose/measure_pose_mean.sh`](../compare_mean_pose/measure_pose_mean.sh) と [`aggregate_pose_mean_from_bags.py`](aggregate_pose_mean_from_bags.py) を参照してください。

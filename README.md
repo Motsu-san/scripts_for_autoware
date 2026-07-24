@@ -13,7 +13,7 @@ rosbag を再生した Localization のリプレイ・評価、NDT 姿勢のば�
 | [`launch_replay_localization/`](launch_replay_localization/README.md) | 録画済み rosbag を再生して Localization（NDT / EKF）をリプレイ・評価する `launch_autoware.sh` 一式 |
 | [`launch_unified_localization/`](launch_unified_localization/) | `unified_localization`（NDT+EKF を 1 ノード化）専用のランチスクリプト |
 | [`measure_ndt_pose_mean/`](measure_ndt_pose_mean/) | direct NDT を複数回実行し、姿勢の平均・ばらつきを測定するツール |
-| [`compare_mean_pose_yaml/`](compare_mean_pose_yaml/) | 測定した平均姿勢 YAML 同士を比較 |
+| [`compare_mean_pose/`](compare_mean_pose/) | 測定した平均姿勢 YAML 同士を比較 |
 | [`fine_tune_odom_calibration/`](fine_tune_odom_calibration/) | rosbag からオドメトリ（車速・角速度）較正値を推定・適用 |
 | [`cpp/ndt_direct_measure/`](cpp/ndt_direct_measure/) | direct NDT align を直接実行する C++ パッケージ（上記測定ツールが利用） |
 | [`py/`](py/) | rosbag / 点群 / 診断まわりの Python ユーティリティ群 |
@@ -38,7 +38,7 @@ rosbag を再生した Localization のリプレイ・評価、NDT 姿勢のば�
 |--------|------|
 | [`measure_ndt_pose_mean/measure_ndt_pose_mean.md`](measure_ndt_pose_mean/measure_ndt_pose_mean.md) | direct NDT を N 回実行し平均 pose・ばらつきを出力 |
 | [`measure_ndt_pose_mean/measure_ndt_direct.md`](measure_ndt_pose_mean/measure_ndt_direct.md) | `convergence_evaluator` 方式の direct NDT align（1 時刻・1 点群） |
-| [`compare_mean_pose_yaml/`](compare_mean_pose_yaml/) | 平均姿勢 YAML 同士の差分比較 |
+| [`compare_mean_pose/`](compare_mean_pose/) | 平均姿勢 YAML 同士の差分比較 |
 
 ### オドメトリ較正
 
