@@ -33,7 +33,9 @@ colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --continu
 MAKEFLAGS="-j16" colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 8 --continue-on-error 2>&1 | tee build.log
 # build for autoware
 colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 8 --continue-on-error --packages-up-to \
-  tier4_localization_launch autoware_default_adapi_universe autoware_adapi_adaptors sample_sensor_kit_description sample_sensor_kit_launch ndt_direct_measure \
+  tier4_localization_launch autoware_default_adapi_universe autoware_adapi_adaptors \
+  sample_sensor_kit_description sample_vehicle_description sample_sensor_kit_launch ndt_direct_measure \
+  autoware_imu_corrector autoware_lanelet2_map_visualizer \
   2>&1 | tee build.log
 # build (limiting CPU usage) for pilot-auto.x2
 colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 8 --continue-on-error --cmake-clean-cache --packages-up-to \
@@ -93,8 +95,8 @@ unset AMENT_PREFIX_PATH
 rm -rf build/ install/ log/
 # 依存関係を含めて再ビルド
 source /opt/ros/humble/setup.bash
-rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 rosdep update
+rosdep install -y --from-paths src --ignore-src --rosdistro $ROS_DISTRO
 
 # re-build limiting CPU usage
 MAKEFLAGS="-j16" colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release --parallel-workers 8 --continue-on-error --cmake-clean-cache 2>&1 | tee build.log
